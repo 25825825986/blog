@@ -105,7 +105,7 @@ theme: butterfly
 ## 文档: https://hexo.io/docs/one-command-deployment
 deploy:
   type: git
-  repo: git@47.111.123.93.io:~/blog.git
+  repo: git@github.com:25825825986/25825825986.github.io.git
   branch: master
 
 # 本地搜索
