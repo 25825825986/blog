@@ -103,10 +103,10 @@ theme: butterfly
 
 # 部署
 ## 文档: https://hexo.io/docs/one-command-deployment
-#deploy:
-  #type: git
-  #repo: git@github.com:25825825986/25825825986.github.io.git
-  #branch: master
+# deploy:
+#   type: git
+#   repo: git@github.com:25825825986/25825825986.github.io.git
+#   branch: master
 
 # 本地搜索
 search:
