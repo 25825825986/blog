@@ -1,29 +1,35 @@
-name: Deploy to Server
+name: Deploy to Server (legacy)
 
+# 说明：这是早期「部署到自建服务器」的工作流，与 GitHub Pages 无关。
+# 已改为仅手动触发，避免每次 push 因缺少 SERVER_* secrets 而报错。
+# 若不再需要自建服务器部署，可直接删除本文件。
 on:
-  push:
-    branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+        with:
+          submodules: recursive
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build Hexo
-        run: npm run build
-        
+        run: |
+          npm run clean
+          npm run build
+
       - name: Deploy to Server
         uses: appleboy/scp-action@v0.1.7
         with:
