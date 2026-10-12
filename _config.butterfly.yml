@@ -565,8 +565,8 @@ math:
 search:
   # 选择：algolia_search / local_search / docsearch
   # 如果不需要搜索功能，保持为空
-  use:
-  placeholder: local_search
+  use: local_search
+  placeholder: 搜索文章
 
   # Algolia 搜索
   algolia_search:
