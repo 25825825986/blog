@@ -35,23 +35,38 @@ jobs:
           npm run clean
           npm run build
 
-      - name: Check deploy token
-        id: token
+      - name: Check deploy key
         env:
-          TOKEN: ${{ secrets.PAGES_DEPLOY_TOKEN }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::warning::未配置 PAGES_DEPLOY_TOKEN，跳过发布步骤。请在仓库 Settings → Secrets and variables → Actions 中添加该 Secret 后重新运行。"
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error title=缺少 DEPLOY_KEY::未配置 DEPLOY_KEY，无法发布到 25825825986.github.io。请把部署私钥存入本仓库 Settings → Secrets and variables → Actions 的 DEPLOY_KEY。"
+            exit 1
           fi
 
+      # 预检：确认这把私钥真的能认证成功。
+      # 以前 peaceiris 那步只会抛出难懂的 git 403，排查成本高。
+      - name: Verify deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          OUT=$(ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -T git@github.com 2>&1 || true)
+          echo "$OUT"
+          if ! echo "$OUT" | grep -q "successfully authenticated"; then
+            echo "::error title=Deploy Key 未生效::SSH 认证失败。请检查：1) 公钥已添加到 25825825986.github.io 的 Settings → Deploy keys，并勾选 Allow write access；2) 本仓库 Secret DEPLOY_KEY 里存的是与它配对的私钥（完整内容，含首尾 BEGIN/END 行）。"
+            exit 1
+          fi
+          echo "Deploy Key 认证通过。"
+
       - name: Deploy to 25825825986.github.io
-        if: steps.token.outputs.ready == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.PAGES_DEPLOY_TOKEN }}
+          deploy_key: ${{ secrets.DEPLOY_KEY }}
           external_repository: 25825825986/25825825986.github.io
           publish_branch: master
           publish_dir: ./public

@@ -25,9 +25,21 @@
 - 站点产物仓库：`25825825986/25825825986.github.io`（构建后的 `public/`，默认分支 `master`）
 - 自动部署：推送到 `main` 分支后，`.github/workflows/deploy-pages.yml` 会自动构建并发布到站点仓库。
 
-首次启用需要在 `blog` 仓库的 Settings → Secrets and variables → Actions 中添加：
+首次启用需要配置一把 **Deploy Key**（比 PAT 更省心：一次配好、不会过期、不用管作用域）：
 
-- `PAGES_DEPLOY_TOKEN`：一个具备目标仓库 `Contents: Read and write` 权限的 GitHub Token（PAT）
+1. 生成密钥对（已生成的放在 `.deploy-key/`，已被 `.gitignore` 忽略）：
+
+   ```bash
+   ssh-keygen -t ed25519 -C "deploy-key@25825825986.github.io" -f .deploy-key/id_ed25519 -N ""
+   ```
+
+2. **公钥**（`.deploy-key/id_ed25519.pub`）→ 加到**目标仓库** `25825825986/25825825986.github.io` 的
+   Settings → **Deploy keys** → Add deploy key，**务必勾选 `Allow write access`**。
+
+3. **私钥**（`.deploy-key/id_ed25519`，含首尾 `BEGIN/END` 行）→ 存到**本仓库** `25825825986/blog` 的
+   Settings → Secrets and variables → Actions，Name 填 **`DEPLOY_KEY`**。
+
+配好后重跑 Actions 即可。工作流在部署前会先做一次 SSH 认证预检，配错了会给出明确报错而不是难懂的 git 403。
 
 本地运行：
 
@@ -37,12 +49,13 @@ npx hexo clean && npx hexo generate
 npx hexo server -p 4000
 ```
 
-注意：`themes/butterfly` 在仓库中是失效的 submodule 引用（缺少 `.gitmodules`），
-本地首次使用需手动拉取主题：
+主题 `themes/butterfly` 是 git submodule（见 `.gitmodules`），首次克隆后需初始化：
 
 ```bash
-git clone https://github.com/jerryc127/hexo-theme-butterfly.git themes/butterfly
+git submodule update --init --recursive
 ```
+
+CI 里由 `actions/checkout` 的 `submodules: recursive` 自动拉取。
 
 自定义样式与特效位于 `source/css/custom.css`、`source/css/universe.css`、`source/js/universe.js`，
 通过 `_config.butterfly.yml` 的 `inject` 注入，与主题解耦，升级主题不会丢失。
