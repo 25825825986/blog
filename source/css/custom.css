@@ -126,6 +126,27 @@ button:focus-visible,
   background-position: center center !important;
 }
 
+/* 暗色模式换一张深色底图。主题把 background-image 写在元素 inline style 上，
+   必须用 !important 才能盖掉。路径与 _config.butterfly.yml 的 background 对应。 */
+[data-theme="dark"] .bg-animation#web_bg {
+  background-image: url(/img/background-dark.webp) !important;
+}
+
+/* 首页头图是透明的，站点标题直接压在底图上。浅色底图配白字看不清，
+   这里改成深色字；暗色模式仍是白字，不用动。 */
+[data-theme="light"] #page-header.full_page #site-title {
+  color: #1e2b3a;
+  text-shadow: none;
+}
+[data-theme="light"] #page-header.full_page #site-subtitle {
+  color: #46586b;
+  text-shadow: none;
+}
+[data-theme="light"] #page-header.full_page #scroll-down .scroll-down-effects {
+  color: #46586b;
+  text-shadow: none;
+}
+
 /* ── 4. 顶部导航（磨砂改版）──────────────────────────────────────────────── */
 #page-header #nav {
   box-sizing: border-box;
@@ -607,6 +628,14 @@ button:focus-visible,
 }
 
 /* ── 11. 文章页 ─────────────────────────────────────────────────────────── */
+/* 文章头图上的标题是白字，遇到亮色封面会看不清。
+   这里用混合模式统一压暗一层，只对「确实设置了头图」的页面生效
+   （[style*="url("] 匹配主题写在 inline style 上的 background-image）。 */
+#page-header.post-bg[style*="url("] {
+  background-color: rgba(12, 17, 24, 0.34);
+  background-blend-mode: multiply;
+}
+
 /* 文章 / 页面 / 归档容器 */
 div#post,
 div#page,
