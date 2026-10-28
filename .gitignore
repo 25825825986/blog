@@ -7,3 +7,5 @@ public/
 .deploy*/
 .deploy-key/
 _multiconfig.yml
+.workbuddy/
+.workbuddy-ai/
