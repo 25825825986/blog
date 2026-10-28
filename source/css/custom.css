@@ -39,11 +39,11 @@
   --on-theme: #fff;
 
   /* 卡片表面（半透明 + 轻磨砂，压在背景图上更通透） */
-  --trans-light: rgba(255, 255, 255, 0.78);
-  --trans-dark: rgba(24, 26, 30, 0.72);
+  --trans-light: rgba(255, 255, 255, 0.64);
+  --trans-dark: rgba(24, 26, 30, 0.60);
   --surface-border: 1px solid rgba(255, 255, 255, 0.55);
   --border-style: 1px solid rgba(30, 34, 40, 0.08);
-  --backdrop-filter: blur(12px) saturate(150%);
+  --backdrop-filter: blur(18px) saturate(165%);
 
   /* 圆角梯度 */
   --radius-sm: 10px;
@@ -133,18 +133,19 @@ button:focus-visible,
 }
 
 /* 首页头图是透明的，站点标题直接压在底图上。浅色底图配白字看不清，
-   这里改成深色字；暗色模式仍是白字，不用动。 */
+   这里改成深色字，并加一圈白色柔光，保证落在亮部暗部都能读。
+   暗色模式仍是白字，不用动。 */
 [data-theme="light"] #page-header.full_page #site-title {
   color: #1e2b3a;
-  text-shadow: none;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.88), 0 0 4px rgba(255, 255, 255, 0.95);
 }
 [data-theme="light"] #page-header.full_page #site-subtitle {
-  color: #46586b;
-  text-shadow: none;
+  color: #2f4055;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.95);
 }
 [data-theme="light"] #page-header.full_page #scroll-down .scroll-down-effects {
-  color: #46586b;
-  text-shadow: none;
+  color: #2f4055;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.9);
 }
 
 /* ── 4. 顶部导航（磨砂改版）──────────────────────────────────────────────── */
