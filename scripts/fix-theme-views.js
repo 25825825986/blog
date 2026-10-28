@@ -1,8 +1,8 @@
 /*!
- * 修复 Hexo 7.3.x + hexo-util 3.3.0 的视图误注册问题
+ * 修复 Hexo 视图误注册问题（Hexo 7.3.0 / 8.1.2 均存在，hexo-util 3.3.0 与 4.0.0 均未修复）
  *
  * 背景：
- *   Hexo 用 Pattern('layout/*path') 识别主题布局文件。hexo-util 3.3.0 的
+ *   Hexo 用 Pattern('layout/*path') 识别主题布局文件。hexo-util 的
  *   Pattern 在编译正则时没有加首尾锚定，导致 'layout/*path' 被编译成
  *   /layout\/(.*)?/ —— 只要路径里出现 "layout/" 子串就会命中。
  *
