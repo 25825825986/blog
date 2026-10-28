@@ -957,9 +957,11 @@ beautify:
 # 全局字体设置
 # 除非您知道它们的工作原理，否则不要修改以下设置
 font:
-  global_font_size:
+  # 15px：14px 配 2 倍行高，中文读起来偏小
+  global_font_size: 15px
   code_font_size:
-  font_family:
+  # 中文优先苹方 / 鸿蒙 / 思源黑体，避免 Windows 直接掉到宋体
+  font_family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'HarmonyOS Sans SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif"
   code_font_family:
 
 # 网站标题和副标题的字体设置

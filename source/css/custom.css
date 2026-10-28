@@ -21,6 +21,7 @@
  *   10. 按钮与标签
  *   11. 文章页
  *   12. 归档 / 分类 / 标签页
+ *   12.5 搜索弹层
  *   13. 页脚
  *   14. 右下角悬浮按钮
  *   15. 移动端抽屉
@@ -34,9 +35,14 @@
   --theme-color: #49b1f5;
   --theme-color-rgb: 73, 177, 245;
   --theme-strong: #2f96e0;          /* 主色压深一档，用于文字/描边 */
+  --theme-accent: #2f96e0;          /* 主色文字（暗色模式下提亮，见 §16） */
   --theme-soft: rgba(73, 177, 245, 0.12);
   --theme-softer: rgba(73, 177, 245, 0.07);
   --on-theme: #fff;
+
+  /* 主题把「伪元素高亮色」定成橙红 #ff7242，用在归档年份节点、timeline 标签的
+     圆点上，和全站天蓝是两个色系。统一收回主色。 */
+  --pseudo-hover: var(--theme-color);
 
   /* 卡片表面（半透明 + 轻磨砂，压在背景图上更通透） */
   --trans-light: rgba(255, 255, 255, 0.64);
@@ -146,6 +152,17 @@ button:focus-visible,
 [data-theme="light"] #page-header.full_page #scroll-down .scroll-down-effects {
   color: #2f4055;
   text-shadow: 0 0 14px rgba(255, 255, 255, 0.9);
+}
+
+/* 子页面（归档 / 标签 / 分类 / 关于…）的页头标题也是透明的，直接压在浅色底图上。
+   主题给的是纯白字 + 4px 淡阴影，浅底上几乎看不见，这里和首页标题统一处理。 */
+[data-theme="light"] #page-header:not(.full_page) #site-title {
+  color: #1e2b3a;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.88), 0 0 4px rgba(255, 255, 255, 0.95);
+}
+#page-site-info #site-title {
+  font-weight: 600;
+  letter-spacing: 0.1em;
 }
 
 /* ── 4. 顶部导航（磨砂改版）──────────────────────────────────────────────── */
@@ -601,10 +618,9 @@ button:focus-visible,
   box-shadow: var(--shadow-theme);
 }
 
-/* 文章标签胶囊 */
+/* 文章标签胶囊（标签页的标签另有一套，见 §12） */
 .post-meta__tags,
-#article-container .tag-link,
-.tag-cloud-list a {
+#article-container .tag-link {
   display: inline-flex;
   align-items: center;
   padding: 3px 12px !important;
@@ -616,8 +632,7 @@ button:focus-visible,
     color 0.25s var(--ease);
 }
 .post-meta__tags:hover,
-#article-container .tag-link:hover,
-.tag-cloud-list a:hover {
+#article-container .tag-link:hover {
   transform: translateY(-2px);
   background: var(--theme-color) !important;
   color: var(--on-theme) !important;
@@ -654,10 +669,14 @@ button:focus-visible,
   }
 }
 
-/* 文章 / 页面 / 归档容器 */
+/* 文章 / 页面 / 归档 / 单个标签容器
+   主题用 `.layout > div:first-child:not(.nc)` 给主栏挂白底（var(--card-bg)），
+   这里统一换成磨砂半透明。单个标签页的容器是 #tag，不是 #archive，
+   漏掉它就会是一块实心白卡。 */
 div#post,
 div#page,
-div#archive {
+div#archive,
+div#tag {
   background: var(--trans-light);
   -webkit-backdrop-filter: var(--backdrop-filter);
   backdrop-filter: var(--backdrop-filter);
@@ -723,18 +742,56 @@ div#archive {
   background: var(--theme-soft);
 }
 
-/* 目录卡 */
-#card-toc .toc-content .toc-link {
-  border-radius: 6px;
-  padding: 2px 6px;
+/* 目录卡
+   坑：主题的目录规则全部挂在 #aside-content #card-toc 下（两个 id），
+   本文件原来只写 #card-toc（一个 id），特异性不够，几条规则其实全被主题盖掉，
+   所以当前项一直是主题默认的整块 #00c4b6 实底白字。这里统一补齐前缀。 */
+#aside-content #card-toc .toc-content .toc-link {
+  position: relative;
+  margin: 2px 0;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
   transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
-#card-toc .toc-content .toc-link:hover {
-  background: var(--theme-soft);
+#aside-content #card-toc .toc-content .toc-link:hover {
+  background: var(--theme-softer);
+  color: var(--theme-strong);
 }
-#card-toc .toc-content .toc-link.active {
+/* 当前阅读项：淡主色底 + 左侧竖条 + 主色字。
+   整块高饱和实底压在磨砂卡上像另配了一套色，换成和 hover 同一套语汇、
+   只是更持久、更明确。 */
+#aside-content #card-toc .toc-content .toc-link.active {
+  background: var(--theme-soft);
+  color: var(--theme-accent) !important;
+}
+#aside-content #card-toc .toc-content .toc-link.active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
   background: var(--theme-color);
-  color: var(--on-theme) !important;
+  transform: translateY(-50%);
+}
+
+/* 标题右侧那个数字 = 当前文章的阅读进度（主题 JS 只写纯数字，不带百分号）。
+   主题用 float: right 定位，但 .item-headline 在本文件里改成了 flex，float 失效，
+   数字就贴在「目录」后面。这里用 margin-left: auto 顶到右边，并补一个 % 号。 */
+#aside-content #card-toc .item-headline .toc-percentage {
+  margin: 0 0 0 auto;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--theme-soft);
+  color: var(--theme-accent);
+  font-size: 0.78em;
+  font-style: normal;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+#aside-content #card-toc .item-headline .toc-percentage::after {
+  content: '%';
 }
 
 /* 版权声明卡 */
@@ -771,15 +828,153 @@ div#archive {
 }
 
 /* ── 12. 归档 / 分类 / 标签页 ───────────────────────────────────────────── */
-/* 归档时间轴节点 */
-#archive .timeline .circle,
-#archive .timeline-item .circle {
+/* 归档时间轴节点
+   原来这里写的是 #archive .timeline .circle，但归档页的 DOM 是 .article-sort-*，
+   根本没有 .timeline / .circle，所以一直没生效，年份节点用的还是主题默认的
+   橙红 #ff7242（--pseudo-hover），夹在一串天蓝节点中间很跳。 */
+.article-sort-title::before,
+.article-sort-item::before {
   border-color: var(--theme-color);
 }
-/* 分类 / 标签页的卡片网格 */
-#page .category-lists .category-list-link,
-#page .tag-cloud-list a {
+/* 年份节点的描边不再变色了，hover 改用它自己填充来给反馈 */
+.article-sort-item.year:hover::before {
+  background: var(--theme-color);
+}
+
+/* 分类页的卡片网格 */
+#page .category-lists .category-list-link {
   border-radius: var(--radius-md);
+}
+
+/* ── 标签页：标签索引 ────────────────────────────────────────────────────── */
+/* 主题的标签云是「随机底色 + 按字数浮动字号」的彩色胶囊（见 scripts/tag-cloud.js
+   里的说明），换成一列统一的索引行：左边标签名，右边文章数。
+   结构由 scripts/tag-cloud.js 生成，.tag-cloud-list 是主题模板给的容器。 */
+.tag-cloud-list {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  /* 主题给标签云单独加了 tagsFadeIn，和页面整体的进入动画叠在一起会闪两次 */
+  animation: none;
+}
+
+/* 顶部统计行 */
+.tag-cloud-list .tag-cloud-meta {
+  margin: 0 0 6px;
+  color: #8b95a3;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+/* 标签行：细分割线的索引列表，靠留白和字重分层，不叠卡片
+   要盖掉主题 .tag-cloud-list a 的白字、内边距和扫光伪元素 */
+.tag-cloud-list a.tag-cloud-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 12px;
+  border: none;
+  border-bottom: 1px solid rgba(31, 45, 61, 0.07);
+  border-radius: 0;
+  background: transparent;
+  color: var(--font-color);
+  line-height: 1.4;
+  transform: none;
+  transition: background-color 0.25s var(--ease), color 0.25s var(--ease),
+    padding 0.25s var(--ease);
+}
+.tag-cloud-list a.tag-cloud-item:last-child {
+  border-bottom: none;
+}
+.tag-cloud-list a.tag-cloud-item::before {
+  display: none;
+}
+/* 行首的 # 号：标签的视觉标记 */
+.tag-cloud-list a.tag-cloud-item::after {
+  content: '#';
+  order: -1;
+  color: var(--theme-color);
+  font-size: 0.95rem;
+  font-weight: 700;
+  opacity: 0.7;
+  transition: opacity 0.25s var(--ease);
+}
+.tag-cloud-list a.tag-cloud-item:hover {
+  background: var(--theme-soft) !important;
+  border-bottom-color: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--theme-strong) !important;
+  padding-left: 18px;
+}
+.tag-cloud-list a.tag-cloud-item:hover::after {
+  opacity: 1;
+}
+/* 主题会让未悬停的标签缩小变淡，列表布局下这个效果太吵，关掉 */
+.tag-cloud-list:hover a:not(:hover) {
+  opacity: 1;
+  transform: none;
+}
+
+.tag-cloud-list a.tag-cloud-item .tag-cloud-item__name {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-highlight-color);
+}
+/* 悬停时跟随整行变主色（行本身的 color 在 hover 规则里设了） */
+.tag-cloud-list a.tag-cloud-item:hover .tag-cloud-item__name {
+  color: inherit;
+}
+.tag-cloud-list a.tag-cloud-item .tag-cloud-item__count {
+  margin-left: auto;
+  flex: none;
+  color: #97a1af;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.25s var(--ease);
+}
+.tag-cloud-list a.tag-cloud-item:hover .tag-cloud-item__count {
+  color: var(--theme-strong);
+}
+
+[data-theme="dark"] .tag-cloud-list a.tag-cloud-item {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme="dark"] .tag-cloud-list a.tag-cloud-item .tag-cloud-item__count {
+  color: rgba(255, 255, 255, 0.42);
+}
+[data-theme="dark"] .tag-cloud-list a.tag-cloud-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--theme-accent) !important;
+}
+[data-theme="dark"] .tag-cloud-list a.tag-cloud-item:hover .tag-cloud-item__count {
+  color: var(--theme-accent);
+}
+[data-theme="dark"] .tag-cloud-list .tag-cloud-meta {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* ── 12.5 搜索弹层 ──────────────────────────────────────────────────────── */
+/* 主题给的是实色 var(--search-bg)（浅色 #f6f8fa），压在全屏底图上像一块白板，
+   和周围磨砂卡片不是一套。这里换成同样的半透明 + 模糊，输入框单独留更实的白底。 */
+.search-dialog {
+  background: rgba(255, 255, 255, 0.74);
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
+  border: var(--border-style);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.search-dialog .local-search-input input {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-pill);
+}
+[data-theme="dark"] .search-dialog {
+  background: rgba(24, 26, 30, 0.78);
+}
+[data-theme="dark"] .search-dialog .local-search-input input {
+  background: rgba(38, 40, 44, 0.9);
 }
 
 /* ── 13. 页脚 ───────────────────────────────────────────────────────────── */
@@ -825,6 +1020,27 @@ div#archive {
 }
 
 /* ── 15. 移动端抽屉 ─────────────────────────────────────────────────────── */
+/* 主题的 --sidebar-bg / --sidebar-menu-bg 都是实色，抽屉拉出来像一块白板。
+   面板和内部菜单卡都改成磨砂，和桌面端的卡片同一套。
+   注意：主题的选择器是 `#sidebar #sidebar-menus`（两个 id），只写一个 id
+   特异性不够，会被原样盖回去。 */
+#sidebar #sidebar-menus {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
+}
+#sidebar #sidebar-menus .menus_items {
+  background: rgba(255, 255, 255, 0.5);
+  border: var(--border-style);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="dark"] #sidebar #sidebar-menus {
+  background: rgba(24, 26, 30, 0.78);
+}
+[data-theme="dark"] #sidebar #sidebar-menus .menus_items {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 #sidebar-menus .avatar-img img {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
 }
@@ -845,12 +1061,19 @@ div#archive {
   --trans-light: var(--trans-dark);
   --surface-border: 1px solid rgba(255, 255, 255, 0.08);
   --border-style: 1px solid rgba(255, 255, 255, 0.08);
+  /* 压深一档的 #2f96e0 在深底上发闷，暗色模式换成提亮版 */
+  --theme-accent: #7ec8fa;
+}
+/* 暗色下目录当前项：底色提一点，避免和卡片糊在一起 */
+[data-theme="dark"] #aside-content #card-toc .toc-content .toc-link.active {
+  background: rgba(var(--theme-color-rgb), 0.18);
 }
 [data-theme="dark"] #recent-posts .recent-post-item,
 [data-theme="dark"] #aside-content .card-widget,
 [data-theme="dark"] div#post,
 [data-theme="dark"] div#archive,
 [data-theme="dark"] div#page,
+[data-theme="dark"] div#tag,
 [data-theme="dark"] #pagination .pagination > *,
 [data-theme="dark"] #rightside > div > button,
 [data-theme="dark"] #rightside > a {
@@ -938,6 +1161,7 @@ div#archive {
   div#post,
   div#page,
   div#archive,
+  div#tag,
   #pagination .pagination > * {
     background: rgba(255, 255, 255, 0.95);
   }
@@ -946,6 +1170,7 @@ div#archive {
   [data-theme="dark"] div#post,
   [data-theme="dark"] div#page,
   [data-theme="dark"] div#archive,
+  [data-theme="dark"] div#tag,
   [data-theme="dark"] #pagination .pagination > * {
     background: rgba(20, 22, 26, 0.96);
   }
