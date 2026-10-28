@@ -132,11 +132,27 @@ button:focus-visible,
   padding: 0 24px;
 }
 
-/* 站名区 */
+/* 站名区
+   注意：#blog-info 在主题里 @extend 了 .limit-one-line（overflow: hidden），
+   会把 36px 的圆形头像连同外圈描边一起裁掉。这里改为 flex 居中 + 溢出可见，
+   省略号下放到 .site-name，长标题依然能正常截断。 */
+#nav #blog-info {
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
 #nav #blog-info .nav-site-title {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+#nav #blog-info .site-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #nav #blog-info .site-icon {
   height: 36px;
@@ -203,6 +219,13 @@ button:focus-visible,
 #nav .menus_items .menus_item .menus_item_child li a:hover {
   background: var(--theme-soft);
   color: var(--theme-strong) !important;
+}
+/* 导航滚出视口后收起下拉菜单。
+   nav-fixed 状态下 #nav 是 position:fixed; top:-60px（整体藏在视口上方），
+   而下拉菜单绝对定位在 .menus_item 里，会跟着一起上移，只剩一截卡在屏幕顶部。
+   鼠标停在下拉菜单里时 .menus_item:hover 依然成立，所以必须显式关掉。 */
+#page-header.nav-fixed:not(.nav-visible) #nav .menus_item_child {
+  display: none;
 }
 
 /* 汉堡按钮 */
@@ -727,16 +750,23 @@ div#archive {
 }
 
 /* ── 14. 右下角悬浮按钮 ─────────────────────────────────────────────────── */
+/* 主题把图标色定义成纯白（$btn-color = #fff），原来的 78% 半透明白底 + 白图标，
+   压在白色卡片上几乎隐形。这里：底色提到接近实白、图标改用主色压深一档，
+   再用描边和阴影把它和卡片分开。 */
+#rightside.rightside-show {
+  opacity: 1; /* 主题默认 0.8，整体发灰，叠在卡片上更糊 */
+}
 #rightside > div > button,
 #rightside > a {
   width: 42px;
   height: 42px;
   border-radius: var(--radius-md);
-  background: var(--trans-light);
+  background: rgba(255, 255, 255, 0.96);
   -webkit-backdrop-filter: var(--backdrop-filter);
   backdrop-filter: var(--backdrop-filter);
-  border: var(--border-style);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(30, 34, 40, 0.12);
+  box-shadow: 0 6px 20px rgba(7, 17, 27, 0.12);
+  color: var(--theme-strong);
   transition: transform 0.25s var(--ease), background-color 0.25s var(--ease),
     color 0.25s var(--ease);
 }
@@ -780,6 +810,12 @@ div#archive {
   background: var(--trans-dark);
   color: rgba(255, 255, 255, 0.85);
 }
+/* 暗色下悬浮按钮底再压深一档，描边换成浅色，保持和卡片分离 */
+[data-theme="dark"] #rightside > div > button,
+[data-theme="dark"] #rightside > a {
+  background: rgba(28, 30, 34, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
 [data-theme="dark"] #aside-content .card-widget .item-headline {
   border-bottom-color: rgba(var(--theme-color-rgb), 0.35);
 }
@@ -790,6 +826,12 @@ div#archive {
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35) !important;
 }
 [data-theme="dark"] #nav .menus_items .menus_item .menus_item_child {
+  background: rgba(38, 40, 44, 0.94);
+}
+/* 滚动态的导航是浅底，上面「下拉菜单在浅底导航下也保持浅色」那条规则特异性更高，
+   会把暗色下拉底盖成白色，于是暗色模式下变成白底白字。这里用同等特异性补一条覆盖。 */
+[data-theme="dark"] #page-header.nav-fixed #nav .menus_item_child,
+[data-theme="dark"] #page-header.not-top-img #nav .menus_item_child {
   background: rgba(38, 40, 44, 0.94);
 }
 [data-theme="dark"] #nav .menus_items .menus_item > a.site-page:hover,
