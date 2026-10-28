@@ -629,12 +629,29 @@ button:focus-visible,
 }
 
 /* ── 11. 文章页 ─────────────────────────────────────────────────────────── */
-/* 文章头图上的标题是白字，遇到亮色封面会看不清。
-   这里用混合模式统一压暗一层，只对「确实设置了头图」的页面生效
-   （[style*="url("] 匹配主题写在 inline style 上的 background-image）。 */
+/* 文章头图上的标题是白字，遇到亮色封面会看不清，用混合模式统一压暗一层。
+   只对「确实设置了头图」的页面生效（[style*="url("] 匹配主题写在 inline
+   style 上的 background-image）。
+
+   同时给头部加遮罩：封面和页面底图是两张不同的图，交界处会出现一条硬边，
+   让封面在底部渐隐成透明，下面的底图自然透上来。
+   不叠底图副本，因为 background-attachment: fixed 在小尺寸元素上会按元素盒
+   重新计算 cover，和整屏底图对不上，反而会露出另一条边。 */
 #page-header.post-bg[style*="url("] {
   background-color: rgba(12, 17, 24, 0.34);
   background-blend-mode: multiply;
+  -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
+}
+
+/* 标题上移，避免落在渐隐区里变成浅底白字 */
+#page-header.post-bg #post-info {
+  bottom: 135px;
+}
+@media screen and (max-width: 768px) {
+  #page-header.post-bg #post-info {
+    bottom: 110px;
+  }
 }
 
 /* 文章 / 页面 / 归档容器 */
