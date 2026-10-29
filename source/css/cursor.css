@@ -1,0 +1,105 @@
+/* ============================================================================
+ * source/css/cursor.css —— 自定义光标（星点 + 跟随光环）
+ * ----------------------------------------------------------------------------
+ * 只在精确指针设备（鼠标 / 触控板）上启用，触屏不受影响。
+ * 原生箭头由 html.cursor-on 统一关掉，但输入框保留原生光标，
+ * 那里需要 I 型竖线来判断插入点。
+ * ========================================================================== */
+
+:root {
+  /* 想整体放大或缩小光标，只改这两个值即可（外圈约为星点的 2 倍） */
+  --cursor-star-size: 11px;
+  --cursor-ring-size: 22px;
+
+  --cursor-star: #a85f18;
+  --cursor-glow: rgba(168, 95, 24, 0.45);
+  --cursor-ring: rgba(150, 98, 52, 0.5);
+  --cursor-ring-fill: rgba(150, 98, 52, 0.08);
+}
+
+html[data-theme="dark"] {
+  --cursor-star: #f7f2c4;
+  --cursor-glow: rgba(247, 242, 196, 0.55);
+  --cursor-ring: rgba(226, 225, 224, 0.42);
+  --cursor-ring-fill: rgba(226, 225, 224, 0.07);
+}
+
+/* 关掉原生箭头。输入类元素单独放行，见下一条 */
+html.cursor-on,
+html.cursor-on * {
+  cursor: none !important;
+}
+
+html.cursor-on input,
+html.cursor-on textarea,
+html.cursor-on select,
+html.cursor-on [contenteditable="true"] {
+  cursor: auto !important;
+}
+
+#cursor-ring,
+#cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  will-change: transform;
+}
+
+#cursor-ring.is-on,
+#cursor-dot.is-on {
+  opacity: 1;
+}
+
+#cursor-ring.is-hidden,
+#cursor-dot.is-hidden {
+  opacity: 0;
+}
+
+/* 外圈：慢半拍跟上来，指到链接时撑开 */
+#cursor-ring i {
+  display: block;
+  width: var(--cursor-ring-size);
+  height: var(--cursor-ring-size);
+  margin: calc(var(--cursor-ring-size) / -2) 0 0 calc(var(--cursor-ring-size) / -2);
+  border-radius: 50%;
+  border: 1px solid var(--cursor-ring);
+  transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1),
+    border-color 0.28s ease, background-color 0.28s ease;
+}
+
+#cursor-ring.is-hot i {
+  transform: scale(1.5);
+  background-color: var(--cursor-ring-fill);
+  border-color: var(--cursor-star);
+}
+
+#cursor-ring.is-down i {
+  transform: scale(0.82);
+}
+
+/* 内芯：四角星，位置严格跟手，取景时以星心为准 */
+#cursor-dot i {
+  display: block;
+  width: var(--cursor-star-size);
+  height: var(--cursor-star-size);
+  margin: calc(var(--cursor-star-size) / -2) 0 0 calc(var(--cursor-star-size) / -2);
+  background: var(--cursor-star);
+  clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+  filter: drop-shadow(0 0 4px var(--cursor-glow));
+  transition: transform 0.22s ease, background-color 0.3s ease;
+}
+
+#cursor-dot.is-hot i {
+  transform: scale(1.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #cursor-ring i,
+  #cursor-dot i {
+    transition: none;
+  }
+}

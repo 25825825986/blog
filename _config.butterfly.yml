@@ -1212,6 +1212,10 @@ inject:
   - <link rel="stylesheet" href="/css/universe.css">
   # 白天动效（光尘 / 花瓣 / 飞鸟）
   - <link rel="stylesheet" href="/css/daylight.css">
+  # 鼠标点击的星尘涟漪
+  - <link rel="stylesheet" href="/css/mouse-effect.css">
+  # 自定义光标（星点 + 跟随光环）
+  - <link rel="stylesheet" href="/css/cursor.css">
   bottom:
   # 星空背景
   - <canvas id="universe"></canvas>
@@ -1221,6 +1225,10 @@ inject:
   - <script defer src="/js/daylight.js"></script>
   # 首页副标题诗句轮播（同一会话内不重复）
   - <script defer src="/js/poem-subtitle.js"></script>
+  # 鼠标点击的星尘涟漪
+  - <script defer src="/js/mouse-effect.js"></script>
+  # 自定义光标（星点 + 跟随光环）
+  - <script defer src="/js/cursor.js"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置
