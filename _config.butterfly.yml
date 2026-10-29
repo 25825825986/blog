@@ -1210,10 +1210,15 @@ inject:
   - <link rel="stylesheet" href="/css/custom.css">
   # 星空背景
   - <link rel="stylesheet" href="/css/universe.css">
+  # 白天动效（光尘 / 花瓣 / 飞鸟）
+  - <link rel="stylesheet" href="/css/daylight.css">
   bottom:
   # 星空背景
   - <canvas id="universe"></canvas>
   - <script defer src="/js/universe.js"></script>
+  # 白天动效（光尘 / 花瓣 / 飞鸟）
+  - <canvas id="daylight" aria-hidden="true"></canvas>
+  - <script defer src="/js/daylight.js"></script>
   # 首页副标题诗句轮播（同一会话内不重复）
   - <script defer src="/js/poem-subtitle.js"></script>
 
