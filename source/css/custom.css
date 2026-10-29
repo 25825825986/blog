@@ -1175,3 +1175,38 @@ div#tag {
     background: rgba(20, 22, 26, 0.96);
   }
 }
+
+/* ── 副标题诗句：打字机光标 ─────────────────────────────────────────────── */
+#site-subtitle .poem-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.75;
+  animation: poem-caret-blink 1s steps(1, end) infinite;
+}
+
+/* 还没有文字时先不显示光标 */
+#site-subtitle #subtitle:empty + .poem-caret {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes poem-caret-blink {
+  0%,
+  50% {
+    opacity: 0.75;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #site-subtitle .poem-caret {
+    animation: none;
+  }
+}

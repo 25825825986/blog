@@ -202,7 +202,9 @@ subtitle:
   # 1 - hitokoto.cn
   # 2 - https://api.aa1.cn/doc/yiyan.html
   # 3 - jinrishici.com
-  source: 3
+  # 注意：这里保持 false，诗句改由 source/js/poem-subtitle.js 接管。
+  # 主题自带的 source 只能拿到一句，配合 effect 的 Typed 循环会把同一句无限重打。
+  source: false
   # 如果关闭打字机效果，副标题将仅显示 sub 的第一行内容
   sub:
 
@@ -1212,6 +1214,8 @@ inject:
   # 星空背景
   - <canvas id="universe"></canvas>
   - <script defer src="/js/universe.js"></script>
+  # 首页副标题诗句轮播（同一会话内不重复）
+  - <script defer src="/js/poem-subtitle.js"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置
