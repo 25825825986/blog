@@ -166,9 +166,56 @@ button:focus-visible,
 }
 
 /* ── 4. 顶部导航（磨砂改版）──────────────────────────────────────────────── */
+/* 三段式布局：站名靠左、菜单居中、搜索靠右
+   主题模板里 #search-button / .menus_items / #toggle-menu 都是 #menus 的子元素，
+   这里用 display: contents 让它们直接成为 #nav 的网格项，从而不必改动 themes/ 源码。
+   grid-template-columns 的 1fr auto 1fr 让中间列严格居中（左右两列等宽），
+   justify-self 又保证站名和搜索按内容宽度贴边，不会被 1fr 拉伸。 */
 #page-header #nav {
   box-sizing: border-box;
   padding: 0 24px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+#nav #menus {
+  display: contents;
+}
+/* 必须显式指定 grid-row，否则搜索按钮（列 3）先于菜单项（列 2）落位时，
+   自动排列的“游标不回退”规则会把菜单项挤到第二行。 */
+#nav #blog-info {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  min-width: 0; /* 允许长标题省略，避免把中间列顶偏 */
+}
+#nav .menus_items {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+}
+#nav #search-button {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  padding-left: 0;
+}
+#nav #toggle-menu {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+/* 折叠态（窄屏或内容超宽）：汉堡按钮落在搜索左侧，搜索仍然最右 */
+#page-header #nav.hide-menu {
+  grid-template-columns: 1fr auto auto;
+}
+#nav.hide-menu #toggle-menu {
+  grid-column: 2;
+  justify-self: end;
+}
+#nav.hide-menu #search-button {
+  grid-column: 3;
 }
 
 /* 站名区
