@@ -1,0 +1,158 @@
+/* ============================================================================
+ * source/css/effects.css —— 页面装饰层样式合并文件
+ * ----------------------------------------------------------------------------
+ * 原先 universe / daylight / mouse-effect / cursor 四个文件分别用 <link> 引入，
+ * 每个都要走一次独立的网络请求，且都是渲染阻塞资源。
+ * 这里按原顺序合并成一个文件，减少 3 次请求。改样式时按下面的分节查找即可。
+ * ========================================================================== */
+
+/* ── 1. 背景宇宙星光（原 universe.css）───────────────────────────────────── */
+#universe {
+  display: block;
+  position: fixed;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── 2. 白天日光动效画布（原 daylight.css）───────────────────────────────── */
+/*
+ * 夜晚由 universe.js 画星空和流星；白天这块画布负责光尘、花瓣和飞鸟，
+ * 两者按 data-theme 互斥，同一时刻只有一层在动。
+ *
+ * 层级：#web_bg 是 -999，内容区是 0，这里取 -1，
+ *      所以动效压在最底层背景之上、所有卡片之下，会透过磨砂卡片隐隐透出来。
+ */
+#daylight {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  pointer-events: none;
+  z-index: -1;
+
+  /* 主题给所有 canvas 挂了 4s 的 to_show 淡入，会把下面的显隐覆盖掉 */
+  animation: none !important;
+
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+/* 首帧画完再加这个类，避免加载瞬间空画布闪一下 */
+#daylight.is-on {
+  opacity: 1;
+}
+
+/* 深色主题交给星空，这块淡出并停更（JS 侧会同时停掉 rAF） */
+html[data-theme="dark"] #daylight {
+  opacity: 0;
+  transition-duration: 0.5s;
+}
+
+/* 系统开启「减少动态效果」时整块隐藏 */
+@media (prefers-reduced-motion: reduce) {
+  #daylight {
+    display: none;
+  }
+}
+
+/* ── 3. 鼠标点击的星尘涟漪（原 mouse-effect.css）─────────────────────────── */
+/*
+ * 画布由 mouse-effect.js 动态创建，铺满视口，只负责显示、不吃事件。
+ * 层级压在所有内容之上，这样点在卡片、导航栏上都能看到涟漪。
+ */
+#mouse-ripple {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  pointer-events: none;
+  z-index: 999;
+
+  /* 主题给所有 canvas 挂了 4s 的 to_show 淡入，会把显隐覆盖掉 */
+  animation: none !important;
+}
+
+/* 系统开启「减少动态效果」时整块隐藏（JS 侧本来也不会创建，这里兜底） */
+@media (prefers-reduced-motion: reduce) {
+  #mouse-ripple {
+    display: none;
+  }
+}
+
+/* ── 4. 笔尖光标（原 cursor.css）─────────────────────────────────────────── */
+/*
+ * 两种状态，同一支笔：
+ *   默认箭头 → 米白笔尖（深色描边）
+ *   链接/按钮 → 反色的墨笔尖（深色填充 + 米白描边）
+ *
+ * cursor 是继承属性，写到 html 上就覆盖全站；链接和按钮的 pointer 是主题
+ * 直接声明的，优先级高于继承，所以在文件下半部分单独接管。
+ *
+ * 图片：SVG 优先（高分屏下是矢量，不会糊），Safari 不支持 SVG 光标，
+ * 会自动退到同目录的 PNG。热点 2 2 对准笔尖。
+ *
+ * 例外：
+ *   1. 正文 .post-content 交回 I 型光标 —— 那里是真的要划词，笔尖会干扰判断。
+ *   2. 主题给首页日期、归档时间显式写了 cursor: default，选择器比 html 更具体，
+ *      必须带 !important 才提得回来，否则鼠标移过去会突然变回系统箭头。
+ */
+html {
+  cursor: url("/img/cursor-nib.svg") 2 2, url("/img/cursor-nib.png") 2 2, auto;
+}
+
+html .article-sort-item-time time,
+html #recent-posts .post-meta-date {
+  cursor: url("/img/cursor-nib.svg") 2 2, url("/img/cursor-nib.png") 2 2, auto !important;
+}
+
+.post-content {
+  cursor: text;
+}
+
+/*
+ * 指针状态：链接、按钮不再退回系统小手，换成反色的笔尖（深墨填充 + 米白描边）。
+ * 主题里这些 cursor: pointer 有的是 (1,1,0)、(2,3,0) 这种带 ID 的高优先级选择器，
+ * 逐个对齐太脆，这里统一用 !important 盖掉 —— 反正只影响 cursor 一个属性。
+ */
+html a[href],
+html button,
+html .site-page,
+html [role="button"],
+html .toggle-button,
+html .code-expand-btn,
+html .highlight-tools i,
+html .reward-button,
+html #scroll-down {
+  cursor: url("/img/cursor-nib-ink.svg") 2 2, url("/img/cursor-nib-ink.png") 2 2, pointer !important;
+}
+
+/*
+ * 按下鼠标后只要有几像素位移，浏览器就会启动「链接拖拽」，
+ * 光标随之切成系统的拖拽样式 —— 看起来就像点下去的一瞬间变回了默认鼠标，
+ * 而且这次点击也一起废了。禁掉链接（含链接内的图片）的拖拽即可；
+ * 正文里独立的图片不受影响，仍然可以拖出去保存。
+ */
+a[href],
+a[href] img {
+  -webkit-user-drag: none;
+}

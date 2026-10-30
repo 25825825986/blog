@@ -11,7 +11,7 @@
 
 nav:
   # 导航栏图片
-  logo: /img/avatar.png
+  logo: /img/avatar.webp
   # 是否显示标题
   display_title: true
   # 是否固定导航栏
@@ -60,7 +60,10 @@ code_blocks:
 # 格式:
 #   icon: 链接 || 描述 || 颜色
 social:
-  fab fa-github: https://github.com/25825825986 || Github || '#24292e'
+  # 这里故意不用 fab fa-github：fab 类会把元素绑到 Font Awesome 品牌字体上，
+  # 浏览器就会去下载 113 KB 的 fa-brands-400.woff2，而全站只用到这一个图标。
+  # 改成自定义类名后，图标由 custom.css 里的 SVG 蒙版绘制，视觉一致且零字体开销。
+  icon-github: https://github.com/25825825986 || Github || '#24292e'
   fas fa-envelope: mailto:153299005@qq.com || Email || '#4a7dbe'
 
 # --------------------------------------
@@ -68,12 +71,12 @@ social:
 # --------------------------------------
 
 # 网站的 favicon 图标
-favicon: /img/avatar.png
+favicon: /img/favicon.png
 
 # 头像设置
 avatar:
 # 头像图片链接
-  img: /img/avatar.png
+  img: /img/avatar.webp
   # 是否启用头像效果
   effect: false
 
@@ -1157,9 +1160,13 @@ instantpage: false
 # Lazyload
 # https://github.com/verlok/vanilla-lazyload
 lazyload:
+  # 实测结论：不开。图片已经压到 41~153 KB，懒加载省不下多少字节，
+  # 但 loading="lazy" 会让图片脱离预加载扫描器，首屏绘制反而变慢。
+  # Lighthouse 移动端对比：开 = 77~84 分（FCP 2.0~2.7s，SI 3.7~6.7s）
+  #                        关 = 稳定 83 分（FCP 1.8s，SI 3.6s）
   enable: false
   # 使用浏览器的原生 lazyload 而不是 vanilla-lazyload
-  native: false
+  native: true
   # 指定使用 Lazyload 的范围 (site 或 post)
   field: site
   placeholder:
@@ -1206,16 +1213,14 @@ css_prefix: true
 # 插入代码到 head（在 '</head>' 标签之前）和底部（在 '</body>' 标签之前）
 inject:
   head: 
+  # 背景图预加载：#web_bg 的背景写在 inline style 上，浏览器要解析完样式才发现它，
+  # 提前声明可以早点开始下载。但它是纯装饰层，不参与首屏文字渲染，
+  # 所以优先级必须给 low —— 用 high 会跟阻塞渲染的 CSS 抢带宽，反而拖慢首次绘制。
+  - <link rel="preload" as="image" href="/img/background-light.webp" fetchpriority="low">
   # 侧边栏样式
   - <link rel="stylesheet" href="/css/custom.css">
-  # 星空背景
-  - <link rel="stylesheet" href="/css/universe.css">
-  # 白天动效（光尘 / 花瓣 / 飞鸟）
-  - <link rel="stylesheet" href="/css/daylight.css">
-  # 鼠标点击的星尘涟漪
-  - <link rel="stylesheet" href="/css/mouse-effect.css">
-  # 自定义光标（笔尖）
-  - <link rel="stylesheet" href="/css/cursor.css">
+  # 装饰层样式（星空 / 日光动效 / 星尘涟漪 / 笔尖光标，已合并为一个文件）
+  - <link rel="stylesheet" href="/css/effects.css">
   bottom:
   # 星空背景
   - <canvas id="universe"></canvas>
