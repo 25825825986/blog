@@ -9,3 +9,4 @@ public/
 _multiconfig.yml
 .workbuddy/
 .workbuddy-ai/
+.perf-backup/
