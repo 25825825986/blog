@@ -11,7 +11,10 @@
 
 nav:
   # 导航栏图片
-  logo: /img/avatar.webp
+  # 单独用 logo-mark.webp 而不是 avatar.webp：导航里只有 36px，
+  # 头像那张的月亮只占 19% 直径，缩到 36px 就剩 6px，山峦会糊成噪点。
+  # 这张把月亮提到 42%，底部留一道山脊，小尺寸下才认得出是"月亮"。
+  logo: /img/logo-mark.webp
   # 是否显示标题
   display_title: true
   # 是否固定导航栏
@@ -1232,6 +1235,8 @@ inject:
   - <script defer src="/js/poem-subtitle.js"></script>
   # 鼠标点击的星尘涟漪
   - <script defer src="/js/mouse-effect.js"></script>
+  # 页面跳转后把笔尖光标提回来（浏览器会把光标重置成系统箭头）
+  - <script defer src="/js/cursor.js"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置

@@ -115,6 +115,9 @@ html[data-theme="dark"] #daylight {
  *   1. 正文 .post-content 交回 I 型光标 —— 那里是真的要划词，笔尖会干扰判断。
  *   2. 主题给首页日期、归档时间显式写了 cursor: default，选择器比 html 更具体，
  *      必须带 !important 才提得回来，否则鼠标移过去会突然变回系统箭头。
+ *
+ * 另：整页跳转后浏览器会把光标重置成系统箭头，且只在鼠标移动时才重新计算，
+ * 光靠 CSS 修不了 —— 由 /js/cursor.js 在 pageshow 后主动触发一次样式重算。
  */
 html {
   cursor: url("/img/cursor-nib.svg") 2 2, url("/img/cursor-nib.png") 2 2, auto;

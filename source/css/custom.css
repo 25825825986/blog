@@ -246,11 +246,16 @@ button:focus-visible,
   margin-right: 0;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5), 0 2px 8px rgba(0, 0, 0, 0.12);
+  /* 原来是 0 0 0 2px rgba(255,255,255,.5)：2px 纯白 50% 在深色导航上太跳，
+     等于给头像套了个亮圈，和旁边锐利的站名一比就显得突兀。
+     改成 1px 极淡暖白（呼应米白月光）+ 一层柔和外发光，
+     边界还在，但退到背景里去了。 */
+  box-shadow: 0 0 0 1px rgba(245, 236, 216, 0.16), 0 0 10px rgba(245, 236, 216, 0.1);
   transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
 }
 #nav #blog-info:hover .site-icon {
   transform: rotate(-8deg) scale(1.06);
+  box-shadow: 0 0 0 1px rgba(245, 236, 216, 0.3), 0 0 16px rgba(245, 236, 216, 0.2);
 }
 #nav #blog-info .site-name {
   font-weight: 700;
