@@ -1,105 +1,49 @@
 /* ============================================================================
- * source/css/cursor.css —— 自定义光标（星点 + 跟随光环）
+ * source/css/cursor.css —— 笔尖光标
  * ----------------------------------------------------------------------------
- * 只在精确指针设备（鼠标 / 触控板）上启用，触屏不受影响。
- * 原生箭头由 html.cursor-on 统一关掉，但输入框保留原生光标，
- * 那里需要 I 型竖线来判断插入点。
+ * 两种状态，同一支笔：
+ *   默认箭头 → 米白笔尖（深色描边）
+ *   链接/按钮 → 反色的墨笔尖（深色填充 + 米白描边）
+ *
+ * cursor 是继承属性，写到 html 上就覆盖全站；链接和按钮的 pointer 是主题
+ * 直接声明的，优先级高于继承，所以在文件下半部分单独接管。
+ *
+ * 图片：SVG 优先（高分屏下是矢量，不会糊），Safari 不支持 SVG 光标，
+ * 会自动退到同目录的 PNG。热点 2 2 对准笔尖。
+ *
+ * 例外：
+ *   1. 正文 .post-content 交回 I 型光标 —— 那里是真的要划词，笔尖会干扰判断。
+ *   2. 主题给首页日期、归档时间显式写了 cursor: default，选择器比 html 更具体，
+ *      必须带 !important 才提得回来，否则鼠标移过去会突然变回系统箭头。
  * ========================================================================== */
 
-:root {
-  /* 想整体放大或缩小光标，只改这两个值即可（外圈约为星点的 2 倍） */
-  --cursor-star-size: 11px;
-  --cursor-ring-size: 22px;
-
-  --cursor-star: #a85f18;
-  --cursor-glow: rgba(168, 95, 24, 0.45);
-  --cursor-ring: rgba(150, 98, 52, 0.5);
-  --cursor-ring-fill: rgba(150, 98, 52, 0.08);
+html {
+  cursor: url("/img/cursor-nib.svg") 2 2, url("/img/cursor-nib.png") 2 2, auto;
 }
 
-html[data-theme="dark"] {
-  --cursor-star: #f7f2c4;
-  --cursor-glow: rgba(247, 242, 196, 0.55);
-  --cursor-ring: rgba(226, 225, 224, 0.42);
-  --cursor-ring-fill: rgba(226, 225, 224, 0.07);
+html .article-sort-item-time time,
+html #recent-posts .post-meta-date {
+  cursor: url("/img/cursor-nib.svg") 2 2, url("/img/cursor-nib.png") 2 2, auto !important;
 }
 
-/* 关掉原生箭头。输入类元素单独放行，见下一条 */
-html.cursor-on,
-html.cursor-on * {
-  cursor: none !important;
+.post-content {
+  cursor: text;
 }
 
-html.cursor-on input,
-html.cursor-on textarea,
-html.cursor-on select,
-html.cursor-on [contenteditable="true"] {
-  cursor: auto !important;
+/* ----------------------------------------------------------------------------
+ * 指针状态：链接、按钮不再退回系统小手，换成反色的笔尖（深墨填充 + 米白描边）。
+ * 主题里这些 cursor: pointer 有的是 (1,1,0)、(2,3,0) 这种带 ID 的高优先级选择器，
+ * 逐个对齐太脆，这里统一用 !important 盖掉 —— 反正只影响 cursor 一个属性。
+ * -------------------------------------------------------------------------- */
+html a[href],
+html button,
+html .site-page,
+html [role="button"],
+html .toggle-button,
+html .code-expand-btn,
+html .highlight-tools i,
+html .reward-button,
+html #scroll-down {
+  cursor: url("/img/cursor-nib-ink.svg") 2 2, url("/img/cursor-nib-ink.png") 2 2, pointer !important;
 }
 
-#cursor-ring,
-#cursor-dot {
-  position: fixed;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-  will-change: transform;
-}
-
-#cursor-ring.is-on,
-#cursor-dot.is-on {
-  opacity: 1;
-}
-
-#cursor-ring.is-hidden,
-#cursor-dot.is-hidden {
-  opacity: 0;
-}
-
-/* 外圈：慢半拍跟上来，指到链接时撑开 */
-#cursor-ring i {
-  display: block;
-  width: var(--cursor-ring-size);
-  height: var(--cursor-ring-size);
-  margin: calc(var(--cursor-ring-size) / -2) 0 0 calc(var(--cursor-ring-size) / -2);
-  border-radius: 50%;
-  border: 1px solid var(--cursor-ring);
-  transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1),
-    border-color 0.28s ease, background-color 0.28s ease;
-}
-
-#cursor-ring.is-hot i {
-  transform: scale(1.5);
-  background-color: var(--cursor-ring-fill);
-  border-color: var(--cursor-star);
-}
-
-#cursor-ring.is-down i {
-  transform: scale(0.82);
-}
-
-/* 内芯：四角星，位置严格跟手，取景时以星心为准 */
-#cursor-dot i {
-  display: block;
-  width: var(--cursor-star-size);
-  height: var(--cursor-star-size);
-  margin: calc(var(--cursor-star-size) / -2) 0 0 calc(var(--cursor-star-size) / -2);
-  background: var(--cursor-star);
-  clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
-  filter: drop-shadow(0 0 4px var(--cursor-glow));
-  transition: transform 0.22s ease, background-color 0.3s ease;
-}
-
-#cursor-dot.is-hot i {
-  transform: scale(1.18);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #cursor-ring i,
-  #cursor-dot i {
-    transition: none;
-  }
-}
