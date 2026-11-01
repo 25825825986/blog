@@ -1246,7 +1246,9 @@ CDN:
   # 注意： Dev 版本只能使用 'local' 作为内部脚本
   # 注意：将第三方脚本设置为 'local' 时，需要安装 hexo-butterfly-extjs
   internal_provider: local
-  third_party_provider: jsdelivr
+  # 第三方库全部改为本地托管（见下方 option 覆盖），因此不再需要 jsdelivr。
+  # 设成 local 还能顺带去掉页面头部对 //cdn.jsdelivr.net 的 preconnect 预连接。
+  third_party_provider: local
 
   # 是否在 URL 中添加版本号，true 或 false
   version: false
@@ -1279,7 +1281,15 @@ CDN:
     # fancybox:
     # fancybox_css:
     # fireworks:
-    # fontawesome:
+    # 图标字体本地化：不再依赖 cdn.jsdelivr.net（国内常被拦截导致图标空白）
+    # 资源位置：source/fontawesome/{css,webfonts}
+    fontawesome: /fontawesome/css/all.min.css
+    # 其余三个实际用到的第三方库也本地化，避免 jsdelivr 在国内加载失败：
+    #   egjs_infinitegrid - 瀑布流布局；typed - 首页副标题打字机；sharejs - 文末分享按钮
+    egjs_infinitegrid: /plugins/infinitegrid.min.js
+    typed: /plugins/typed.umd.js
+    sharejs: /plugins/sharejs/social-share.min.js
+    sharejs_css: /plugins/sharejs/share.min.css
     # gitalk:
     # gitalk_css:
     # giscus:
