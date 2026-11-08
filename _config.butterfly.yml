@@ -478,13 +478,14 @@ darkmode:
   # 切换暗黑/明亮模式的按钮
   button: true
   # 是否自动切换暗黑/明亮模式
-  # autoChangeMode: 1  跟随系统设置，如果系统不支持暗黑模式，则在晚上 6 点到早上 6 点之间切换暗黑模式
-  # autoChangeMode: 2  在晚上 6 点到早上 6 点之间切换暗黑模式
+  # autoChangeMode: 1  跟随系统设置，如果系统不支持暗黑模式，则按 start/end 时间切换
+  # autoChangeMode: 2  按 start/end 时间自动切换
   # autoChangeMode: false  不自动切换
-  autoChangeMode: false
-  # 设置明亮模式时间，值在 0 到 24 之间。如果未设置，默认值为 6 和 18
-  start: 
-  end:
+  autoChangeMode: 2
+  # 明色模式时段为 [start, end)，其余时间为暗色模式
+  # 当前设置：08:00-18:59 明色，19:00-次日 07:59 暗色
+  start: 8
+  end: 19
 
 # 在返回顶部按钮中显示滚动百分比
 rightside_scroll_percent: false
@@ -957,7 +958,7 @@ beautify:
   enable: false
   # 指定美化的范围 (site 或 post)
   field: post
-  # 指定标题前缀图标，如 '\f0c1'
+  # 指定标题前缀图标，如 '\\f0c1'
   title_prefix_icon:
   # 指定标题前缀图标的颜色，如 '#F47466'
   title_prefix_icon_color:
@@ -980,7 +981,7 @@ blog_title_font:
 # 分隔符图标的设置
 hr_icon:
   enable: true
-  # Font Awesome 图标的 unicode 值，如 '\3423'
+  # Font Awesome 图标的 unicode 值，如 '\\3423'
   icon:
   icon_top:
 
@@ -1225,6 +1226,8 @@ inject:
   # 装饰层样式（星空 / 日光动效 / 星尘涟漪 / 笔尖光标，已合并为一个文件）
   - <link rel="stylesheet" href="/css/effects.css">
   bottom:
+  # 页面持续打开时，按本地时间自动切换明暗主题
+  - <script defer src="/js/auto-theme.js"></script>
   # 星空背景
   - <canvas id="universe"></canvas>
   - <script defer src="/js/universe.js"></script>
