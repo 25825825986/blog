@@ -11,10 +11,8 @@
 
 nav:
   # 导航栏图片
-  # 单独用 logo-mark.webp 而不是 avatar.webp：导航里只有 36px，
-  # 头像那张的月亮只占 19% 直径，缩到 36px 就剩 6px，山峦会糊成噪点。
-  # 这张把月亮提到 42%，底部留一道山脊，小尺寸下才认得出是"月亮"。
-  logo: /img/logo-mark.webp
+  # 与名片头像共用同一张原图：两处引用同一个 URL，浏览器只下载一次
+  logo: /img/avatar.jpg
   # 是否显示标题
   display_title: true
   # 是否固定导航栏
@@ -78,8 +76,9 @@ favicon: /img/favicon.png
 
 # 头像设置
 avatar:
-# 头像图片链接
-  img: /img/avatar.webp
+# 头像图片链接（直接用原图，不做二次裁切；图本身是圆形构图，
+# 四角白底会被 border-radius:50% 的圆形遮罩切掉）
+  img: /img/avatar.jpg
   # 是否启用头像效果
   effect: false
 
