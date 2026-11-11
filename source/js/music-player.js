@@ -61,6 +61,7 @@
   var moved = false;
   var start = { x: 0, y: 0, left: 0, top: 0 };
   var pendingSeek = 0;   /* 下次 load 之后要跳到的秒数（续播用） */
+  var currentKey = '';   /* 当前播放曲目的「歌名|歌手」，与列表下标解耦 */
   var lastSaveAt = 0;    /* 上次落盘时间，用来给 timeupdate 节流 */
 
   /* ---------------------------------------------------------- 进度记忆 */
@@ -107,7 +108,9 @@
   }
 
   function saveState(force) {
-    if (!audio || !audio.src || !playlist.length) return;
+    /* index < 0：当前播放的曲目不属于这个列表（刚切走歌单），
+       这时不能记，否则会把上一首的进度写到新歌单名下 */
+    if (!audio || !audio.src || !playlist.length || index < 0) return;
     var now = Date.now();
     if (!force && now - lastSaveAt < SAVE_GAP) return;
     lastSaveAt = now;
@@ -159,6 +162,7 @@
     pendingSeek = v.time >= RESUME_MIN ? v.time : 0;
 
     var item = playlist[index];
+    currentKey = trackKey(item);
     titleEl.textContent = item.title || '未知曲目';
     if (item.pic) {
       coverImg.src = item.pic;
@@ -254,46 +258,45 @@
       });
   }
 
-  /* 切换歌单：停掉当前这首，清空队列，拉新列表 */
+  /* 切换歌单：只换列表，不动播放器。
+     正在听的那首继续放着，只有点列表里的具体曲目才会切歌。 */
   function switchPlaylist(i) {
     if (i === plIndex || !PLAYLISTS[i]) return;
-    var wasPlaying = !!(audio && audio.src && !audio.paused);
+
     /* 先把旧歌单听到哪记下来，再清空——顺序反了会存成空记录 */
     saveState(true);
-    if (audio) audio.pause();
+
+    var hasTrack = !!(audio && audio.src);
+    /* 记住当前这首是谁：切回它所在的歌单时，把高亮落回它身上 */
+    var curKey = hasTrack ? currentKey : '';
 
     plIndex = i;
     try { localStorage.setItem(PL_KEY, PLAYLISTS[i].id); } catch (e) {}
 
     playlist = [];
-    index = 0;
+    /* -1：当前曲目不在这个列表里，避免 next/prev 按下标取到别的歌 */
+    if (hasTrack) index = -1;
     pendingSeek = 0;
     failCount = 0;
-
-    if (audio) {
-      /* 清掉 src，否则点播放会先响上一首再被换掉 */
-      audio.removeAttribute('src');
-      try { audio.load(); } catch (e) {}
-    }
-    dock.classList.remove('playing');
-    playBtn.innerHTML = ICONS.play;
-    playBtn.setAttribute('aria-label', '播放');
-    coverBtn.classList.remove('has-cover');
-    coverImg.removeAttribute('src');
-    titleEl.textContent = PLAYLISTS[i].name;
-    artistEl.textContent = '正在载入…';
-    updateProgress();
+    loading = true;   /* 先置位，空列表才不会闪一下「加载失败」 */
 
     updateHero();
     renderTabs();
     renderRows();
 
-    loadPlaylist().then(function (list) {
-      if (!list || !list.length || !wasPlaying) return;
-      /* 正在播的时候切歌单，别让音乐停。目标歌单有上次进度就接着听，
-         没有才从第一首开始——不然切回来还得自己拖进度。 */
-      if (pendingSeek > 0 && !audio.src) resume();
-      else load(index, true);
+    loadPlaylist(true).then(function (list) {
+      if (!list || !list.length) return;
+      if (hasTrack) {
+        if (curKey) {
+          for (var k = 0; k < playlist.length; k++) {
+            if (trackKey(playlist[k]) === curKey) { index = k; highlightRow(); break; }
+          }
+        }
+      } else {
+        /* 播放器本来是空的，才让它落到这个歌单的上次进度；
+           正在放歌时保持原样，不打断 */
+        applySavedState();
+      }
     });
   }
 
@@ -398,6 +401,7 @@
     if (!playlist.length) return;
     index = (i + playlist.length) % playlist.length;
     var item = playlist[index];
+    currentKey = trackKey(item);
     /* 只有「续播」这一条路径会带 resumeAt；点歌、上一首、下一首一律从头放 */
     pendingSeek = (typeof resumeAt === 'number' && resumeAt > 0) ? resumeAt : 0;
     audio.src = item.url;
@@ -420,26 +424,28 @@
   }
 
   function next() { load(index + 1, true); }
-  function prev() { load(index - 1, true); }
+  function prev() { load(index < 0 ? playlist.length - 1 : index - 1, true); }
 
   function togglePlay() {
+    /* 已经在放歌时，播放键只管暂停/继续，跟列表是否为空无关
+       （切歌单的瞬间列表会短暂为空，但当前这首还在放） */
+    if (audio && audio.src) {
+      if (audio.paused) {
+        audio.play().catch(function (err) {
+          console.warn('[music] 播放失败', err);
+        });
+      } else {
+        audio.pause();
+      }
+      return;
+    }
     if (!playlist.length) {
       artistEl.textContent = loading ? '正在载入歌单…' : '正在重试载入…';
       loadPlaylist();
       return;
     }
-    if (!audio.src) {
-      /* 有上次进度就接着听，否则从第一首开始 */
-      resume();
-      return;
-    }
-    if (audio.paused) {
-      audio.play().catch(function (err) {
-        console.warn('[music] 播放失败', err);
-      });
-    } else {
-      audio.pause();
-    }
+    /* 有上次进度就接着听，否则从第一首开始 */
+    resume();
   }
 
   function initAudio() {
@@ -520,13 +526,14 @@
       });
   }
 
-  function loadPlaylist() {
+  /* silent：只换列表，不碰播放器上的曲名/封面/进度 */
+  function loadPlaylist(silent) {
     /* 每次请求带一个代号：连着点两个歌单时，先发的那批数据回来直接丢弃，
        否则会出现「已经切到 B，列表却显示 A」的错乱。 */
     var my = ++plGen;
     var pl = currentPl();
     loading = true;
-    if (!playlist.length) artistEl.textContent = '正在载入「' + pl.name + '」…';
+    if (!playlist.length && !silent) artistEl.textContent = '正在载入「' + pl.name + '」…';
     return fetchPlaylistFrom(0, pl.id)
       .then(function (list) {
         if (my !== plGen) return null;
@@ -545,20 +552,22 @@
         /* 标签上的数字以实际能播的为准：接口给的 trackCount 里可能包含
            无播放地址（下架/无版权）的曲目，会出现「写 21 首、列表 20 行」。 */
         if (PLAYLISTS[plIndex]) PLAYLISTS[plIndex].count = playlist.length;
-        artistEl.textContent = playlist.length
-          ? pl.name + ' · ' + playlist.length + ' 首'
-          : '歌单为空';
+        if (!silent) {
+          artistEl.textContent = playlist.length
+            ? pl.name + ' · ' + playlist.length + ' 首'
+            : '歌单为空';
+        }
         updateHero();
         renderRows();
         renderTabs();
-        applySavedState();
+        if (!silent) applySavedState();
         return playlist;
       })
       .catch(function (err) {
         if (my !== plGen) return null;
         loading = false;
         console.warn('[music] 歌单加载失败', err);
-        if (!playlist.length) artistEl.textContent = '歌单加载失败，点球重试';
+        if (!playlist.length && !silent) artistEl.textContent = '歌单加载失败，点球重试';
         updateHero();
         renderRows();
         return null;
