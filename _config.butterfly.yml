@@ -1272,6 +1272,10 @@ CDN:
     # 一旦加载失败 pjax 就不生效（退化成整页跳转），白丢优化。
     # 文件：source/js/pjax.min.js（pjax 0.2.8，从 unpkg 拉取）
     pjax: /js/pjax.min.js
+    # Font Awesome 同样改自托管：cdn.jsdelivr.net 在国内不稳定，一旦拉不到，
+    # 导航栏、公告、时间卡片、文章元信息的图标会全部变空白。
+    # 文件：source/libs/fontawesome（6.7.2 的 css/all.min.css + woff2，共 388 KB）
+    fontawesome: /libs/fontawesome/css/all.min.css
     # abcjs_basic_js:
     # activate_power_mode:
     # algolia_js:
