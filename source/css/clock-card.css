@@ -1,0 +1,153 @@
+/* ============================================================================
+ * source/css/clock-card.css —— 侧边栏「时光」时间卡片
+ * ----------------------------------------------------------------------------
+ * 挂载点：source/_data/widget.yml 的 top 列表（Butterfly 内置自定义卡片位，
+ *         由 card_top_self.pug 渲染），不改动 themes/ 下任何源码。
+ * 刷新逻辑：source/js/clock-card.js，读浏览器本地时间，每秒一次；
+ *         农历与节气依赖 source/js/lunar.js，按天刷新。
+ * 依赖令牌：custom.css §1 的 --theme-accent / --radius-* / --ease，
+ *         因此本文件必须在 custom.css 之后加载（见 _config.butterfly.yml inject.head）。
+ * ========================================================================== */
+
+.clock-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+/* ── 主时间 ──────────────────────────────────────────────────────────────
+ * 时、分、秒同一字号，层级只用不透明度区分。
+ * 不用「秒数缩小一档」的写法：小字号和大字号共用基线时，第二个冒号会明显
+ * 低于第一个冒号，看上去像断成了两截。同字号既不会错位，也不会因字宽变化抽动。
+ * 等宽字体 + tabular-nums 双保险，避免秒数从 1 跳到 0 时整行左右挪。
+ * ---------------------------------------------------------------------- */
+.clock-card__time {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  line-height: 1.12;
+  font-family: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 1.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--theme-accent);
+  /* 数字每秒变一次，禁掉选中，避免手滑拖蓝 */
+  user-select: none;
+}
+
+.clock-card__colon {
+  opacity: 0.45;
+  margin: 0 1px;
+}
+
+.clock-card__sec {
+  opacity: 0.55;
+  min-width: 2ch;
+  text-align: left;
+}
+
+/* ── 日期 / 农历 / 节气：三行归为一组，行距比卡片主间距紧一点 ────────────────
+ * 它们都是「今天是什么日子」的补充信息，视觉上应该抱成一团，
+ * 而不是和下面的进度条、问候语平均分布。
+ * ---------------------------------------------------------------------- */
+.clock-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: -3px;
+}
+
+.clock-card__date {
+  text-align: center;
+  font-size: 0.84rem;
+  color: #7a8290;
+}
+
+.clock-card__lunar {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #7a8290;
+  letter-spacing: 0.02em;
+}
+
+.clock-card__jieqi {
+  text-align: center;
+  font-size: 0.76rem;
+  color: #8b93a1;
+  letter-spacing: 0.04em;
+}
+
+/* 当天就是节气：用主色 + 加粗，和「距离某节气」区分开 */
+.clock-card__jieqi.is-today {
+  color: var(--theme-accent);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* ── 今日进度条 ── */
+.clock-card__track {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--theme-color-rgb), 0.13);
+  overflow: hidden;
+}
+
+.clock-card__fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(var(--theme-color-rgb), 0.45), var(--theme-color));
+  transition: width 0.8s var(--ease);
+}
+
+/* ── 底部：问候 + 今日百分比 ── */
+.clock-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: #8b93a1;
+  letter-spacing: 0.02em;
+}
+
+.clock-card__foot span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-accent);
+  opacity: 0.9;
+}
+
+/* ── 暗色模式 ── */
+[data-theme="dark"] .clock-card__date,
+[data-theme="dark"] .clock-card__lunar,
+[data-theme="dark"] .clock-card__foot {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="dark"] .clock-card__jieqi {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+[data-theme="dark"] .clock-card__jieqi.is-today {
+  color: var(--theme-accent);
+}
+
+[data-theme="dark"] .clock-card__track {
+  background: rgba(var(--theme-color-rgb), 0.2);
+}
+
+/* ── 窄屏（移动端抽屉里的侧边栏）字号收一点 ── */
+@media (max-width: 768px) {
+  .clock-card__time {
+    font-size: 1.7rem;
+  }
+}
+
+/* ── 尊重「减少动态效果」偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  .clock-card__fill {
+    transition: none;
+  }
+}

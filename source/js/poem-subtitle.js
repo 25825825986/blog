@@ -11,8 +11,11 @@
 ;(function () {
   'use strict'
 
-  var el = document.getElementById('subtitle')
-  if (!el || window.__poemSubtitleStarted) return
+  /* #subtitle 在 #body-wrap 里，pjax 换页时会被整块替换成新节点，
+     所以不能在这里抓一次就完事——那样会一直往已经脱离文档的旧节点上打字，
+     表现为「从文章页回首页后副标题一片空白」。真实取元素放在 start() 里。 */
+  var el = null
+  if (window.__poemSubtitleStarted) return
   window.__poemSubtitleStarted = true
 
   var API = 'https://v2.jinrishici.com/one.json?client=browser-sdk/1.2'
@@ -181,11 +184,15 @@
   var nextTimer = null
   var running = false
   var pausedWhileHidden = false
+  /* 每次重启（pjax 换页）都会 +1。异步链路里都记住自己那一代的号，
+     发现不是当前代就直接退出——否则新旧两套循环会同时往同一个元素上打字。 */
+  var gen = 0
 
   function type (text) {
+    var my = gen
     return new Promise(function (resolve) {
       if (reduceMotion) {
-        el.textContent = text
+        if (my === gen) el.textContent = text
         resolve()
         return
       }
@@ -195,6 +202,7 @@
       el.textContent = ''
 
       ;(function tick () {
+        if (my !== gen) { resolve(); return }   // 已重启，旧元素不要了
         if (i >= text.length) {
           resolve()
           return
@@ -206,9 +214,10 @@
   }
 
   function erase () {
+    var my = gen
     return new Promise(function (resolve) {
       if (reduceMotion || !el.textContent) {
-        el.textContent = ''
+        if (my === gen) el.textContent = ''
         resolve()
         return
       }
@@ -216,6 +225,7 @@
       var step = Math.max(12, ERASE_MS / Math.max(el.textContent.length, 1))
 
       ;(function tick () {
+        if (my !== gen) { resolve(); return }
         var text = el.textContent
         if (!text) {
           resolve()
@@ -231,7 +241,9 @@
 
   function schedule (delay) {
     clearTimeout(nextTimer)
+    var my = gen
     nextTimer = setTimeout(function () {
+      if (my !== gen) return
       if (document.hidden) {
         pausedWhileHidden = true
         return
@@ -246,11 +258,12 @@
       return
     }
     running = true
+    var my = gen
 
     var line = take()
 
     if (!line) {
-      running = false
+      if (my === gen) running = false
       schedule(WAIT_MS)
       return
     }
@@ -260,14 +273,14 @@
         return type(line)
       })
       .then(function () {
-        schedule(HOLD_MS)
+        if (my === gen) schedule(HOLD_MS)
       })
       .catch(function (err) {
         console.warn('[poem-subtitle] 轮播异常：', err && err.message)
-        schedule(RETRY_MS)
+        if (my === gen) schedule(RETRY_MS)
       })
       .then(function () {
-        running = false
+        if (my === gen) running = false
       })
   }
 
@@ -287,6 +300,16 @@
   }
 
   function start () {
+    // 每次启动都重新取：pjax 换页后 #subtitle 是新节点
+    el = document.getElementById('subtitle')
+    if (!el) return   // 非首页（文章页 / 归档页都没有副标题）
+
+    gen++             // 作废上一代还在跑的循环
+    running = false
+    pausedWhileHidden = false
+    clearTimeout(typeTimer)
+    clearTimeout(nextTimer)
+
     // 万一副标题还是由主题启动的，先把它的 Typed 实例停掉，避免两套逻辑打架
     if (window.typed && typeof window.typed.destroy === 'function') {
       try {
@@ -298,7 +321,7 @@
     el.textContent = ''
 
     // 打字机光标（放在 #subtitle 外面，改文字时不会被清掉）
-    if (el.parentNode) {
+    if (el.parentNode && !el.parentNode.querySelector('.poem-caret')) {
       var caret = document.createElement('span')
       caret.className = 'poem-caret'
       caret.setAttribute('aria-hidden', 'true')
@@ -322,5 +345,21 @@
       clearTimeout(nextTimer)
       cycle()
     }
+  })
+
+  /* ---------- pjax ----------
+   * pjax 只替换 #body-wrap 里的内容，本脚本不会被重新执行。
+   * 换页时先把旧循环停掉（否则它还会往已经销毁的节点上打字），
+   * 新页面落地后如果是首页就重新启动。 */
+  document.addEventListener('pjax:send', function () {
+    gen++
+    clearTimeout(typeTimer)
+    clearTimeout(nextTimer)
+    running = false
+    pausedWhileHidden = false
+  })
+
+  document.addEventListener('pjax:complete', function () {
+    if (document.getElementById('subtitle')) start()
   })
 })()

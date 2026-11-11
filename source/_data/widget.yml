@@ -1,0 +1,41 @@
+# ============================================================================
+# 侧边栏自定义卡片
+# ----------------------------------------------------------------------------
+# Butterfly 内置的自定义卡片位，由主题里的 card_top_self.pug /
+# card_bottom_self.pug 渲染，不需要改动 themes/ 下任何源码，升级主题不会丢。
+#
+# 字段说明：
+#   name        卡片标题（显示在标题栏）
+#   icon        标题图标，FontAwesome 类名
+#   class_name  额外挂到 .card-widget 上的类名，用来写样式
+#   id_name     卡片 id
+#   html        卡片内容，原样输出（不转义），可写任意 HTML
+#
+# 时间卡片的样式：source/css/clock-card.css
+# 时间卡片的逻辑：source/js/clock-card.js
+# 农历/节气换算：source/js/lunar.js（暴露 window.Lunar）
+# ============================================================================
+
+top:
+  - name: 时光
+    icon: fa-regular fa-clock
+    class_name: card-clock
+    id_name: card-clock
+    html: |
+      <div class="clock-card">
+        <div class="clock-card__time">
+          <span class="clock-card__hm" id="clock-hm">--:--</span>
+          <span class="clock-card__colon">:</span>
+          <span class="clock-card__sec" id="clock-sec">--</span>
+        </div>
+        <div class="clock-card__meta">
+          <div class="clock-card__date" id="clock-date">正在读取本地时间…</div>
+          <div class="clock-card__lunar" id="clock-lunar"></div>
+          <div class="clock-card__jieqi" id="clock-jieqi"></div>
+        </div>
+        <div class="clock-card__track"><span class="clock-card__fill" id="clock-fill"></span></div>
+        <div class="clock-card__foot">
+          <span id="clock-greet"></span>
+          <span id="clock-pct"></span>
+        </div>
+      </div>

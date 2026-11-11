@@ -1137,7 +1137,7 @@ note:
 
 # https://github.com/MoOx/pjax
 pjax:
-  enable: false
+  enable: true
   # 排除指定页面不使用 pjax，如 '/music/'
   exclude:
     # - /xxxxxx/
@@ -1217,6 +1217,8 @@ css_prefix: true
 # 插入代码到 head（在 '</head>' 标签之前）和底部（在 '</body>' 标签之前）
 inject:
   head: 
+  # 音乐播放器：APlayer + MetingJS
+  - <link rel="stylesheet" href="/css/music.css?v=20261111c">
   # 背景图预加载：#web_bg 的背景写在 inline style 上，浏览器要解析完样式才发现它，
   # 提前声明可以早点开始下载。但它是纯装饰层，不参与首屏文字渲染，
   # 所以优先级必须给 low —— 用 high 会跟阻塞渲染的 CSS 抢带宽，反而拖慢首次绘制。
@@ -1225,7 +1227,11 @@ inject:
   - <link rel="stylesheet" href="/css/custom.css">
   # 装饰层样式（星空 / 日光动效 / 星尘涟漪 / 笔尖光标，已合并为一个文件）
   - <link rel="stylesheet" href="/css/effects.css">
+  # 侧边栏时间卡片样式（用到 custom.css 里的设计令牌，必须排在它后面）
+  - <link rel="stylesheet" href="/css/clock-card.css?v=20261110c">
   bottom:
+  # 全局悬浮播放器，/music/ 页面复用同一个实例
+  - <script defer src="/js/music-player.js?v=20261111i"></script>
   # 页面持续打开时，按本地时间自动切换明暗主题
   - <script defer src="/js/auto-theme.js"></script>
   # 星空背景
@@ -1235,11 +1241,15 @@ inject:
   - <canvas id="daylight" aria-hidden="true"></canvas>
   - <script defer src="/js/daylight.js"></script>
   # 首页副标题诗句轮播（同一会话内不重复）
-  - <script defer src="/js/poem-subtitle.js"></script>
+  - <script defer src="/js/poem-subtitle.js?v=20261111a"></script>
   # 鼠标点击的星尘涟漪
   - <script defer src="/js/mouse-effect.js"></script>
   # 页面跳转后把笔尖光标提回来（浏览器会把光标重置成系统箭头）
-  - <script defer src="/js/cursor.js"></script>
+  - <script defer src="/js/cursor.js?v=20261111a"></script>
+  # 农历 / 节气换算（时间卡片依赖它，必须排在 clock-card.js 之前）
+  - <script defer src="/js/lunar.js?v=20261110"></script>
+  # 侧边栏时间卡片（读本地时间，每秒刷新；农历/节气按天刷新）
+  - <script defer src="/js/clock-card.js?v=20261110b"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置
@@ -1258,6 +1268,10 @@ CDN:
   # 例如：https://cdn.staticfile.org/${cdnjs_name}/${version}/${min_cdnjs_file}
 
   option:
+    # 把 pjax 换成本地文件：主题默认走 cdn.jsdelivr.net，这个域名在国内经常连不上，
+    # 一旦加载失败 pjax 就不生效（退化成整页跳转），白丢优化。
+    # 文件：source/js/pjax.min.js（pjax 0.2.8，从 unpkg 拉取）
+    pjax: /js/pjax.min.js
     # abcjs_basic_js:
     # activate_power_mode:
     # algolia_js:

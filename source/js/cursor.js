@@ -42,4 +42,8 @@
 
   // pageshow 同时覆盖首次加载、刷新，以及从 bfcache 后退回来
   window.addEventListener('pageshow', refreshCursor);
+
+  // pjax 换页不触发 pageshow，光标会停在系统箭头上直到你动一下鼠标。
+  // 事件派发在 document 上，且此时新内容已落地，可以直接重算。
+  document.addEventListener('pjax:complete', refreshCursor);
 })();
