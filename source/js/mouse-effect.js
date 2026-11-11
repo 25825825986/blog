@@ -37,6 +37,10 @@
   // 同屏最多留这么多粒子，连点时丢掉最老的，避免一路堆到卡顿
   var MAX_PARTS = 240
 
+  // 距画布边界多少像素开始淡出。不淡的话，擦边的粒子会被裁成一条条横段，
+  // 看着像底部故障亮线。
+  var EDGE_FADE = 26
+
   function rand (a, b) {
     return a + Math.random() * (b - a)
   }
@@ -79,6 +83,13 @@
   /* ---------- 一次点击 ---------- */
 
   function burst (x, y) {
+    // 点在最边上时，光核会被画布边界硬切 —— 半个径向渐变贴在视口下沿，
+    // 看起来就是一条横贯底部的亮线，像渲染坏了。把生成点往里收 28px，
+    // 涟漪就还是完整的圆，只是位置略微内移。
+    var inset = Math.min(28, W / 4, H / 4)
+    x = Math.min(W - inset, Math.max(inset, x))
+    y = Math.min(H - inset, Math.max(inset, y))
+
     var dark = document.documentElement.getAttribute('data-theme') === 'dark'
     var set = dark ? NIGHT : DAY
     var count = 28
@@ -153,7 +164,8 @@
     if (flash) {
       var f = flash.life * flash.life
       var fr = flash.r * 2
-      ctx.globalAlpha = f * 0.55
+      var ff = Math.min(1, Math.min(flash.x, W - flash.x, flash.y, H - flash.y) / EDGE_FADE)
+      ctx.globalAlpha = f * 0.55 * ff
       ctx.drawImage(flash.glow, flash.x - fr / 2, flash.y - fr / 2, fr, fr)
       ctx.globalAlpha = 1
     }
@@ -163,12 +175,16 @@
       // 平方衰减，末尾收得比线性快，不会拖一条长长的尾巴
       var a = p.life * p.life
 
+      // 离边界越近越淡，到边界处正好为 0，画面就永远不会出现被硬切的截断
+      var ef = Math.min(1, Math.min(p.x, W - p.x, p.y, H - p.y) / EDGE_FADE)
+      if (ef <= 0) continue
+
       var s = p.size * (0.55 + p.life * 0.6)
-      ctx.globalAlpha = a * 0.8
+      ctx.globalAlpha = a * 0.8 * ef
       ctx.drawImage(p.glow, p.x - s / 2, p.y - s / 2, s, s)
 
       // 光晕只是托一层柔光，真正被看见的是这颗实心核，所以它要够亮够大
-      ctx.globalAlpha = Math.min(1, a * 1.5)
+      ctx.globalAlpha = Math.min(1, a * 1.5) * ef
       ctx.fillStyle = p.core + a.toFixed(3) + ')'
       if (p.square) {
         var c = Math.max(1, 3 * p.life)
