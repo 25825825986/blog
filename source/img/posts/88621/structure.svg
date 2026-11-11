@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 480" width="520" role="img" aria-label="看板娘的工作流程：站主说一句话，先读 SKILL.md 判断类型，再读对应的档案，然后干活交付">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 z" fill="#49b1f5"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="420" height="480" rx="14" fill="#171d2b"/>
+
+  <!-- 1 输入 -->
+  <rect x="70" y="24" width="280" height="48" rx="9" fill="#222b3d" stroke="#33405a"/>
+  <text x="210" y="54" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#e6ebf5">站主说一句</text>
+  <line x1="210" y1="72" x2="210" y2="88" stroke="#49b1f5" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- 2 入口 -->
+  <rect x="46" y="92" width="328" height="68" rx="9" fill="#1d2a3d" stroke="#49b1f5" stroke-width="1.5"/>
+  <text x="210" y="119" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" font-weight="600" fill="#49b1f5">SKILL.md</text>
+  <text x="210" y="142" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12.5" fill="#93a0b8">先认人，再判断这是哪类活</text>
+  <line x1="210" y1="160" x2="210" y2="176" stroke="#49b1f5" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- 3 档案 -->
+  <rect x="26" y="180" width="368" height="158" rx="9" fill="#222b3d" stroke="#33405a"/>
+  <text x="210" y="206" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12.5" fill="#7c8aa3">按类型只读一份</text>
+  <g font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14">
+    <text x="52" y="234" fill="#e6ebf5">writing.md</text>
+    <text x="368" y="234" text-anchor="end" fill="#93a0b8">写稿：文风、脱敏</text>
+    <text x="52" y="262" fill="#e6ebf5">visuals.md</text>
+    <text x="368" y="262" text-anchor="end" fill="#93a0b8">配图：证据优先</text>
+    <text x="52" y="290" fill="#e6ebf5">site.md</text>
+    <text x="368" y="290" text-anchor="end" fill="#93a0b8">改站：目录与坑</text>
+    <text x="52" y="318" fill="#e6ebf5">safety.md</text>
+    <text x="368" y="318" text-anchor="end" fill="#93a0b8">底线：不擅自发布</text>
+  </g>
+  <line x1="210" y1="338" x2="210" y2="354" stroke="#49b1f5" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- 4 交付 -->
+  <rect x="46" y="358" width="328" height="62" rx="9" fill="#222b3d" stroke="#33405a"/>
+  <text x="210" y="384" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" fill="#e6ebf5">干活 · 验一遍 · 交付</text>
+  <text x="210" y="405" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="11.5" fill="#93a0b8">改了哪几个文件、验了什么、还差什么</text>
+
+  <text x="210" y="452" text-anchor="middle" font-family="system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="11" fill="#6b788f">站外的事不接</text>
+</svg>
