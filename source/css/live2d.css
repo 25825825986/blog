@@ -1,0 +1,306 @@
+/* ── 看板娘 ────────────────────────────────────────────────────────────────
+   右下角一个 Live2D 小人，点开能说话。
+   她不占版面：容器整块 pointer-events: none，只有人物躯干那一小块热区可点，
+   页面照常能划、能点、能选中文字。
+   ------------------------------------------------------------------------ */
+
+/* 模型尺寸用变量，右下角按钮组的高度靠它算，两边不会对不上。
+   屏幕矮的时候整体缩一档，不然小人会占掉半个屏。 */
+:root {
+  --l2d-w: 300px;
+  --l2d-h: 430px;
+}
+
+@media (max-height: 820px) {
+  :root {
+    --l2d-w: 258px;
+    --l2d-h: 360px;
+  }
+}
+
+.l2d {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: var(--l2d-w);
+  height: var(--l2d-h);
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+
+.l2d.is-on {
+  opacity: 1;
+}
+
+/* 模型画布 */
+.l2d-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.l2d-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 点击热区：只盖住人物躯干，不是整块画布。
+   盖满会挡住页面右下角的内容，盖太小又不好点。 */
+.l2d-hit {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 150px;
+  height: 320px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 60px 60px 0 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.l2d-hit:focus-visible {
+  outline: 2px solid var(--btn-bg, #49b1f5);
+  outline-offset: -4px;
+}
+
+/* 气泡：fixed 定位，跟容器尺寸解耦，这样换视口大小不用重算 */
+.l2d-bubble {
+  position: fixed;
+  right: calc(var(--l2d-w) + 10px);
+  bottom: calc(var(--l2d-h) * 0.46);
+  width: 252px;
+  max-width: calc(100vw - 40px);
+  padding: 12px 14px 10px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 32px rgba(30, 44, 66, 0.16), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  transform-origin: 100% 100%;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.l2d-bubble.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.l2d-bubble[hidden] {
+  display: none;
+}
+
+.l2d-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: #22303f;
+  word-break: break-word;
+  max-height: 168px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.l2d-text:empty::before {
+  content: '…';
+  color: #9aa6b6;
+}
+
+/* 打字中的光标 */
+.l2d-text.is-typing::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.5;
+  animation: l2d-caret 1s steps(2, start) infinite;
+}
+
+@keyframes l2d-caret {
+  to { visibility: hidden; }
+}
+
+/* 输入行 */
+.l2d-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(30, 44, 66, 0.09);
+}
+
+.l2d-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(30, 44, 66, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  line-height: 1.4;
+  color: #22303f;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.l2d-input::placeholder {
+  color: #9aa6b6;
+}
+
+.l2d-input:focus {
+  border-color: var(--btn-bg, #49b1f5);
+  box-shadow: 0 0 0 3px rgba(73, 177, 245, 0.14);
+}
+
+.l2d-send {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--btn-bg, #49b1f5);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.l2d-send:hover { filter: brightness(1.08); }
+.l2d-send:active { transform: scale(0.94); }
+.l2d-send:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+/* 收起时的入口：一个很小的圆点，不打扰 */
+.l2d-trigger {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 16px rgba(30, 44, 66, 0.18);
+  color: var(--btn-bg, #49b1f5);
+  font-size: 15px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.l2d-trigger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 44, 66, 0.24);
+}
+
+/* display: flex 会盖掉 [hidden] 的 display: none，必须显式写一条 */
+.l2d-trigger[hidden] {
+  display: none;
+}
+
+/* ── 深色 ─────────────────────────────────────────────────────────────── */
+
+html[data-theme="dark"] .l2d-bubble,
+.dark .l2d-bubble {
+  background: rgba(38, 46, 60, 0.96);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+html[data-theme="dark"] .l2d-text,
+.dark .l2d-text {
+  color: #e6ebf5;
+}
+
+html[data-theme="dark"] .l2d-form,
+.dark .l2d-form {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme="dark"] .l2d-input,
+.dark .l2d-input {
+  background: rgba(22, 28, 38, 0.9);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #e6ebf5;
+}
+
+html[data-theme="dark"] .l2d-input::placeholder,
+.dark .l2d-input::placeholder {
+  color: #7c8aa3;
+}
+
+html[data-theme="dark"] .l2d-trigger,
+.dark .l2d-trigger {
+  background: rgba(38, 46, 60, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── 给小人让位 ────────────────────────────────────────────────────────── */
+
+/* 右下角那排悬浮按钮（回到顶部、夜间模式）原来贴着底边，
+   小人加载后整体上移，不然按钮会浮在她脸上。只在加载后生效，
+   没加载时页面保持原样。 */
+body.l2d-on #rightside {
+  bottom: calc(var(--l2d-h) + 16px);
+  transition: bottom 0.4s ease;
+}
+
+/* ── 移动端 ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  :root {
+    --l2d-w: 200px;
+    --l2d-h: 280px;
+  }
+
+  .l2d-hit {
+    width: 112px;
+    height: 230px;
+  }
+
+  /* 手机上没地方把气泡放旁边，改放到模型上方 */
+  .l2d-bubble {
+    right: 16px;
+    bottom: calc(var(--l2d-h) + 12px);
+    width: calc(100vw - 32px);
+    max-width: 320px;
+  }
+
+  .l2d-text {
+    max-height: 132px;
+    font-size: 13px;
+  }
+
+  body.l2d-on #rightside {
+    bottom: calc(var(--l2d-h) + 12px);
+  }
+}
+
+/* ── 减少动态效果 ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .l2d,
+  .l2d-bubble,
+  .l2d-trigger,
+  .l2d-send {
+    transition: none;
+  }
+
+  .l2d-text.is-typing::after {
+    animation: none;
+  }
+}

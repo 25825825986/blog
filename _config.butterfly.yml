@@ -1228,6 +1228,8 @@ inject:
   - <link rel="stylesheet" href="/css/effects.css">
   # 侧边栏时间卡片样式（用到 custom.css 里的设计令牌，必须排在它后面）
   - <link rel="stylesheet" href="/css/clock-card.css?v=20261110c">
+  # 右下角看板娘（样式；脚本在 bottom 段，首屏后才拉模型）
+  - <link rel="stylesheet" href="/css/live2d.css?v=20261112d">
   bottom:
   # 全局悬浮播放器，/music/ 页面复用同一个实例
   - <script defer src="/js/music-player.js?v=20261112g"></script>
@@ -1249,6 +1251,8 @@ inject:
   - <script defer src="/js/lunar.js?v=20261110"></script>
   # 侧边栏时间卡片（读本地时间，每秒刷新；农历/节气按天刷新）
   - <script defer src="/js/clock-card.js?v=20261110b"></script>
+  # 看板娘（自己判断何时加载，这里只是把它挂上去）
+  - <script defer src="/js/live2d.js?v=20261112d"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置
