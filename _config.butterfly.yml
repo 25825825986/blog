@@ -1232,7 +1232,7 @@ inject:
   - <link rel="stylesheet" href="/css/live2d.css?v=20261112d">
   bottom:
   # 全局悬浮播放器，/music/ 页面复用同一个实例
-  - <script defer src="/js/music-player.js?v=20261112g"></script>
+  - <script defer src="/js/music-player.js?v=20261113a"></script>
   # 页面持续打开时，按本地时间自动切换明暗主题
   - <script defer src="/js/auto-theme.js"></script>
   # 星空背景

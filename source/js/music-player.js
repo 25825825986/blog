@@ -506,12 +506,20 @@
     });
   }
 
-  /* 依次尝试各个源，第一个成功就返回；全部失败才抛错 */
-  function fetchPlaylistFrom(i, id) {
+  /* 依次尝试各个源，第一个成功就返回；全部失败才抛错。
+     限流(429) / 5xx 视为「自建源暂时忙」，必须同源退避重试——绝不能切到匿名
+     公共源：那边的会员曲目会静默变成 30 秒试听，比暂时没歌更难受。 */
+  function fetchPlaylistFrom(i, id, attempt) {
     var base = METING_APIS[i];
     var url = base + '?server=netease&type=playlist&id=' + id + '&r=' + Math.random();
+    var tries = attempt || 0;
     return fetch(url)
       .then(function (r) {
+        if (r.status === 429 || r.status >= 500) {
+          var busy = new Error('HTTP ' + r.status);
+          busy.busy = true;
+          throw busy;
+        }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
@@ -520,9 +528,19 @@
         return list;
       })
       .catch(function (err) {
+        if (err && err.busy && i === 0) {
+          if (tries < 3) {
+            var wait = 800 * Math.pow(2, tries);
+            console.warn('[music] 自建源限流，' + wait + 'ms 后重试（第 ' + (tries + 1) + ' 次）');
+            return new Promise(function (res) { setTimeout(res, wait); })
+              .then(function () { return fetchPlaylistFrom(i, id, tries + 1); });
+          }
+          console.warn('[music] 自建源持续限流，本次不加载，保留现有列表');
+          throw err;
+        }
         if (i + 1 < METING_APIS.length) {
           console.warn('[music] 源不可用，换下一个：' + base, err);
-          return fetchPlaylistFrom(i + 1, id);
+          return fetchPlaylistFrom(i + 1, id, 0);
         }
         throw err;
       });
