@@ -407,6 +407,7 @@
     audio.src = item.url;
     titleEl.textContent = item.title || '未知曲目';
     artistEl.textContent = item.author || '';
+    loadLyric(item.songId);
     if (item.pic) {
       coverImg.src = item.pic;
       coverBtn.classList.add('has-cover');
@@ -470,6 +471,7 @@
 
     audio.addEventListener('timeupdate', function () {
       updateProgress();
+      syncLyric(audio.currentTime || 0);
       saveState(false);
     });
 
@@ -546,6 +548,7 @@
             author: x.author || x.artist || '',
             url: x.url,
             pic: x.pic || '',
+            songId: x.songId || '',
             lrc: x.lrc || ''
           };
         });
@@ -593,6 +596,220 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  /* ── 歌词 ──────────────────────────────────────────────────────────
+   * 一句一行，居中，其余留白。不做滚动歌词列表：这个站本来就是安静的，
+   * 字幕跟着声音走就够了。
+   * 纯音乐占这个站的绝大多数，所以「没有歌词」不是异常态而是常态——
+   * 那时候不空着，把歌词头部那几行署名（作曲 / 编曲）拿出来顶上。
+   * ---------------------------------------------------------------- */
+  var lyric = { key: '', lines: [], trans: [], meta: {}, pure: false, ready: false };
+  var lyricEl = null, lyricLineEl = null, lyricTransEl = null;
+  var lyricGen = 0, lyricTimer = 0, lyricIdx = -2, lyricPaintedAt = 0;
+
+  var LRC_SRC = '\\[(\\d{1,2}):(\\d{2})(?:[.:](\\d{1,3}))?\\]';
+  var CREDIT_RE = /^([\u4e00-\u9fa5A-Za-z]{1,8})\s*[:：]\s*(.+)$/;
+  var PURE_RE = /纯音乐|請欣賞|请欣赏/;
+  var SYMBOL_RE = /^[\s♪♫·•—….-]+$/;
+
+  /* [01:23.45] 或 [01:23:45]，一句可能挂多个时间标签（副歌复用） */
+  function parseLrc(text) {
+    var out = [];
+    if (!text) return out;
+    var rows = String(text).split(/\r?\n/);
+    for (var i = 0; i < rows.length; i++) {
+      var raw = rows[i];
+      if (!raw || raw.indexOf('[') < 0) continue;
+      var re = new RegExp(LRC_SRC, 'g');
+      var times = [], m;
+      while ((m = re.exec(raw)) !== null) {
+        var frac = m[3] || '';
+        var ms = 0;
+        if (frac) {
+          ms = frac.length === 1 ? Number(frac) * 100
+             : frac.length === 2 ? Number(frac) * 10
+             : Number(frac);
+        }
+        times.push(Number(m[1]) * 60 + Number(m[2]) + ms / 1000);
+      }
+      if (!times.length) continue;
+      var body = raw.replace(new RegExp(LRC_SRC, 'g'), '').trim();
+      /* 整行只有 ♪ · — 这类符号的，是间奏标记不是歌词，丢掉 */
+      if (!body || SYMBOL_RE.test(body)) continue;
+      for (var k = 0; k < times.length; k++) out.push({ t: times[k], text: body });
+    }
+    out.sort(function (a, b) { return a.t - b.t; });
+    return out;
+  }
+
+  /* 歌词头部那几行「作词 : xxx」不是歌词，单独挑出来 */
+  function splitCredits(rows) {
+    var meta = {}, lines = [];
+    for (var i = 0; i < rows.length; i++) {
+      var m = CREDIT_RE.exec(rows[i].text);
+      if (m && rows[i].t < 8) {
+        if (!meta[m[1]]) meta[m[1]] = m[2].trim();
+      } else {
+        lines.push(rows[i]);
+      }
+    }
+    return { meta: meta, lines: lines };
+  }
+
+  /* 两种形态都算纯音乐：
+     一是歌词直接写着「纯音乐，请欣赏」；
+     二是整篇只有一串 ♪，一个字都没有。 */
+  function looksPure(lines) {
+    if (!lines.length) return true;
+    var i;
+    for (i = 0; i < lines.length; i++) {
+      if (PURE_RE.test(lines[i].text)) return true;
+    }
+    for (i = 0; i < lines.length; i++) {
+      if (!SYMBOL_RE.test(lines[i].text)) return false;
+    }
+    return true;
+  }
+
+  function fetchLyric(i, id) {
+    var base = METING_APIS[i];
+    var url = base + '?server=netease&type=lyric&id=' + encodeURIComponent(id) + '&r=' + Math.random();
+    return fetch(url)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .catch(function (err) {
+        if (i + 1 < METING_APIS.length) return fetchLyric(i + 1, id);
+        throw err;
+      });
+  }
+
+  /* pjax 换页后 DOM 是新的，元素引用要重新拿一遍，再按当前状态重画 */
+  function mountLyric() {
+    lyricEl = pageEl ? pageEl.querySelector('.mp-lyric') : null;
+    lyricLineEl = pageEl ? pageEl.querySelector('.mp-lyric__line') : null;
+    lyricTransEl = pageEl ? pageEl.querySelector('.mp-lyric__trans') : null;
+    if (lyricEl && lyric.ready) renderIdle();
+  }
+
+  function loadLyric(songId) {
+    var id = songId ? String(songId) : '';
+    if (!id) {
+      lyric = { key: '', lines: [], trans: [], meta: {}, pure: true, ready: true };
+      lyricIdx = -2;
+      paintLyric('', '', true);
+      return;
+    }
+    if (lyric.key === id) return;
+
+    lyric = { key: id, lines: [], trans: [], meta: {}, pure: false, ready: false };
+    lyricIdx = -2;
+    paintLyric('', '', true);
+
+    fetchLyric(0, id).then(function (d) {
+      if (lyric.key !== id) return;   /* 已经切歌，这批数据丢掉 */
+      var main = splitCredits(parseLrc(d && d.lrc));
+      lyric.lines = main.lines;
+      lyric.meta = main.meta;
+      lyric.trans = parseLrc(d && d.tlyric);
+      lyric.pure = looksPure(main.lines);
+      lyric.ready = true;
+      renderIdle();
+      syncLyric(audio.currentTime || 0);
+    }).catch(function () {
+      if (lyric.key !== id) return;
+      lyric.pure = true;
+      lyric.ready = true;
+      renderIdle();
+    });
+  }
+
+  /* 有歌词就停在当前那句；纯音乐显示署名，别留一块空白 */
+  function renderIdle() {
+    if (!lyricLineEl) return;
+    if (!lyric.pure && lyric.lines.length) {
+      var line = lyric.lines[lyricIdx >= 0 ? lyricIdx : 0];
+      paintLyric(line.text, transAt(line.t), true);
+      /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
+      if (lyricLineEl) lyricLineEl.classList.toggle('is-pending', lyricIdx < 0);
+      return;
+    }
+    var sub = [];
+    if (lyric.meta['作曲']) sub.push('作曲 ' + lyric.meta['作曲']);
+    /* 作曲编曲常常是同一人，别写成「作曲 xx · 编曲 xx」 */
+    if (lyric.meta['编曲'] && lyric.meta['编曲'] !== lyric.meta['作曲']) {
+      sub.push('编曲 ' + lyric.meta['编曲']);
+    }
+    paintLyric('纯音乐', sub.join(' · '), true);
+  }
+
+  /* 按时间二分找当前句，比逐行遍历稳 */
+  function syncLyric(t) {
+    if (lyric.pure || !lyric.lines.length) return;
+    var lo = 0, hi = lyric.lines.length - 1, idx = -1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (lyric.lines[mid].t <= t) { idx = mid; lo = mid + 1; }
+      else { hi = mid - 1; }
+    }
+    if (idx < 0) {
+      /* 前奏还没唱到第一句：把首句用淡色摆着当预告，
+         否则前奏长的歌会让这块空二十几秒，看着像没加载出来 */
+      if (lyricIdx !== -1) {
+        lyricIdx = -1;
+        paintLyric(lyric.lines[0].text, '', true);
+        if (lyricLineEl) lyricLineEl.classList.add('is-pending');
+      }
+      return;
+    }
+    if (idx === lyricIdx) return;
+    if (lyricLineEl) lyricLineEl.classList.remove('is-pending');
+    lyricIdx = idx;
+    var line = lyric.lines[idx];
+    paintLyric(line.text, transAt(line.t));
+  }
+
+  function transAt(t) {
+    if (!lyric.trans.length) return '';
+    var lo = 0, hi = lyric.trans.length - 1, idx = -1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (lyric.trans[mid].t <= t + 0.4) { idx = mid; lo = mid + 1; }
+      else { hi = mid - 1; }
+    }
+    if (idx < 0) return '';
+    var d = lyric.trans[idx].t - t;
+    return (d > -0.8 && d < 0.8) ? lyric.trans[idx].text : '';
+  }
+
+  /* 换一句：先淡出，210ms 后换字再淡入。
+     间隔太短的快歌直接换，否则两句挤在一起反而看不清。 */
+  function paintLyric(text, trans, instant) {
+    if (!lyricLineEl || !lyricTransEl) return;
+    var now = Date.now();
+    if (!instant && now - lyricPaintedAt < 1100) instant = true;
+    lyricPaintedAt = now;
+
+    var gen = ++lyricGen;
+    clearTimeout(lyricTimer);
+    lyricLineEl.classList.remove('is-in');
+    lyricTransEl.classList.remove('is-in');
+
+    function apply() {
+      if (gen !== lyricGen) return;
+      lyricLineEl.textContent = text || '';
+      lyricTransEl.textContent = trans || '';
+      lyricTransEl.hidden = !trans;
+      /* 强制回流，否则同一个 class 连着加两次不会有过渡 */
+      void lyricLineEl.offsetWidth;
+      lyricLineEl.classList.add('is-in');
+      if (trans) lyricTransEl.classList.add('is-in');
+    }
+
+    if (instant) { apply(); return; }
+    lyricTimer = setTimeout(apply, 210);
+  }
+
   function renderMusicPage() {
     if (pageEl) return;
     var host = document.getElementById('article-container');
@@ -618,6 +835,10 @@
       '</div>',
       '</div>',
       '</header>',
+      '<div class="mp-lyric" aria-live="polite" aria-label="歌词">',
+      '<p class="mp-lyric__line"></p>',
+      '<p class="mp-lyric__trans" hidden></p>',
+      '</div>',
       '<nav class="mp-tabs" aria-label="歌单切换"></nav>',
       '<div class="mp-panel">',
       '<div class="mp-head">',
@@ -632,6 +853,7 @@
 
     host.appendChild(pageEl);
     rowsEl = pageEl.querySelector('.mp-rows');
+    mountLyric();
 
     pageEl.querySelector('.mp-tabs').addEventListener('click', function (e) {
       var btn = e.target.closest('[data-pl]');
@@ -898,6 +1120,9 @@
     } else {
       pageEl = null;
       rowsEl = null;
+      lyricEl = null;
+      lyricLineEl = null;
+      lyricTransEl = null;
     }
   }
 

@@ -65,7 +65,7 @@ social:
   # 浏览器就会去下载 113 KB 的 fa-brands-400.woff2，而全站只用到这一个图标。
   # 改成自定义类名后，图标由 custom.css 里的 SVG 蒙版绘制，视觉一致且零字体开销。
   icon-github: https://github.com/25825825986 || Github || '#24292e'
-  fas fa-envelope: mailto:153299005@qq.com || Email || '#4a7dbe'
+  icon-mail: mailto:153299005@qq.com || Email || '#4a7dbe'
 
 # --------------------------------------
 # 图片设置
@@ -1217,7 +1217,7 @@ css_prefix: true
 inject:
   head: 
   # 音乐播放器：APlayer + MetingJS
-  - <link rel="stylesheet" href="/css/music.css?v=20261111c">
+  - <link rel="stylesheet" href="/css/music.css?v=20261112g">
   # 背景图预加载：#web_bg 的背景写在 inline style 上，浏览器要解析完样式才发现它，
   # 提前声明可以早点开始下载。但它是纯装饰层，不参与首屏文字渲染，
   # 所以优先级必须给 low —— 用 high 会跟阻塞渲染的 CSS 抢带宽，反而拖慢首次绘制。
@@ -1230,7 +1230,7 @@ inject:
   - <link rel="stylesheet" href="/css/clock-card.css?v=20261110c">
   bottom:
   # 全局悬浮播放器，/music/ 页面复用同一个实例
-  - <script defer src="/js/music-player.js?v=20261111k"></script>
+  - <script defer src="/js/music-player.js?v=20261112g"></script>
   # 页面持续打开时，按本地时间自动切换明暗主题
   - <script defer src="/js/auto-theme.js"></script>
   # 星空背景
