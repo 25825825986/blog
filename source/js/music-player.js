@@ -621,7 +621,7 @@
    * 那时候不空着，把歌词头部那几行署名（作曲 / 编曲）拿出来顶上。
    * ---------------------------------------------------------------- */
   var lyric = { key: '', lines: [], trans: [], meta: {}, pure: false, ready: false };
-  var lyricEl = null, lyricLineEl = null, lyricTransEl = null;
+  var lyricEl = null, lyricColEls = [], lyricTransEl = null;
   var lyricGen = 0, lyricTimer = 0, lyricIdx = -2, lyricPaintedAt = 0;
 
   var LRC_SRC = '\\[(\\d{1,2}):(\\d{2})(?:[.:](\\d{1,3}))?\\]';
@@ -704,9 +704,12 @@
 
   /* pjax 换页后 DOM 是新的，元素引用要重新拿一遍，再按当前状态重画 */
   function mountLyric() {
-    lyricEl = pageEl ? pageEl.querySelector('.mp-lyric') : null;
-    lyricLineEl = pageEl ? pageEl.querySelector('.mp-lyric__line') : null;
-    lyricTransEl = pageEl ? pageEl.querySelector('.mp-lyric__trans') : null;
+    /* 歌词层在 body 下，不在 pageEl 里 */
+    lyricEl = document.getElementById('mp-lyric-layer');
+    lyricColEls = lyricEl
+      ? Array.prototype.slice.call(lyricEl.querySelectorAll('.mp-lyric__col'))
+      : [];
+    lyricTransEl = lyricEl ? lyricEl.querySelector('.mp-lyric__trans') : null;
     if (lyricEl && lyric.ready) renderIdle();
   }
 
@@ -744,12 +747,12 @@
 
   /* 有歌词就停在当前那句；纯音乐显示署名，别留一块空白 */
   function renderIdle() {
-    if (!lyricLineEl) return;
+    if (!lyricEl) return;
     if (!lyric.pure && lyric.lines.length) {
       var line = lyric.lines[lyricIdx >= 0 ? lyricIdx : 0];
       paintLyric(line.text, transAt(line.t), true);
       /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
-      if (lyricLineEl) lyricLineEl.classList.toggle('is-pending', lyricIdx < 0);
+      lyricEl.classList.toggle('is-pending', lyricIdx < 0);
       return;
     }
     var sub = [];
@@ -776,12 +779,12 @@
       if (lyricIdx !== -1) {
         lyricIdx = -1;
         paintLyric(lyric.lines[0].text, '', true);
-        if (lyricLineEl) lyricLineEl.classList.add('is-pending');
+        if (lyricEl) lyricEl.classList.add('is-pending');
       }
       return;
     }
     if (idx === lyricIdx) return;
-    if (lyricLineEl) lyricLineEl.classList.remove('is-pending');
+    if (lyricEl) lyricEl.classList.remove('is-pending');
     lyricIdx = idx;
     var line = lyric.lines[idx];
     paintLyric(line.text, transAt(line.t));
@@ -800,28 +803,53 @@
     return (d > -0.8 && d < 0.8) ? lyric.trans[idx].text : '';
   }
 
+  /* 一句拆两列。短句不拆，长句对半；优先落在空格或标点上，
+     别把词劈成两半（「安静」拆成「安」「静」看着很怪）。 */
+  function splitCols(text) {
+    var t = String(text || '').replace(/\s+/g, ' ').trim();
+    var n = t.length;
+    if (n <= 7) return [t, ''];
+
+    var mid = Math.ceil(n / 2);
+
+    /* 英文：往后找最近的空格，宁可两列长短不齐也别拆单词 */
+    var sp = t.indexOf(' ', mid - 1);
+    if (sp > 0 && sp < n - 1) {
+      return [t.slice(0, sp), t.slice(sp + 1)];
+    }
+
+    /* 中文：标点跟着上一列走 */
+    var punct = '，。、；：！？…—,.;:!?~';
+    for (var i = 0; i < 3; i++) {
+      if (mid + i < n && punct.indexOf(t.charAt(mid + i)) >= 0) { mid = mid + i + 1; break; }
+      if (mid - i - 1 > 0 && punct.indexOf(t.charAt(mid - i - 1)) >= 0) { mid = mid - i; break; }
+    }
+    if (mid <= 0 || mid >= n) mid = Math.ceil(n / 2);
+    return [t.slice(0, mid), t.slice(mid)];
+  }
+
   /* 换一句：先淡出，210ms 后换字再淡入。
      间隔太短的快歌直接换，否则两句挤在一起反而看不清。 */
   function paintLyric(text, trans, instant) {
-    if (!lyricLineEl || !lyricTransEl) return;
+    if (!lyricEl || !lyricColEls.length || !lyricTransEl) return;
     var now = Date.now();
     if (!instant && now - lyricPaintedAt < 1100) instant = true;
     lyricPaintedAt = now;
 
     var gen = ++lyricGen;
     clearTimeout(lyricTimer);
-    lyricLineEl.classList.remove('is-in');
-    lyricTransEl.classList.remove('is-in');
+    lyricEl.classList.remove('is-in');
 
     function apply() {
       if (gen !== lyricGen) return;
-      lyricLineEl.textContent = text || '';
+      var cols = splitCols(text);
+      lyricColEls[0].textContent = cols[0];
+      lyricColEls[1].textContent = cols[1];
       lyricTransEl.textContent = trans || '';
       lyricTransEl.hidden = !trans;
       /* 强制回流，否则同一个 class 连着加两次不会有过渡 */
-      void lyricLineEl.offsetWidth;
-      lyricLineEl.classList.add('is-in');
-      if (trans) lyricTransEl.classList.add('is-in');
+      void lyricEl.offsetWidth;
+      lyricEl.classList.add('is-in');
     }
 
     if (instant) { apply(); return; }
@@ -832,6 +860,10 @@
     if (pageEl) return;
     var host = document.getElementById('article-container');
     if (!host) return;
+
+    /* 重建前先把上一份歌词层拆了，不然会叠出好几层 */
+    var stale = document.getElementById('mp-lyric-layer');
+    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
 
     pageEl = document.createElement('section');
     pageEl.className = 'mp';
@@ -853,8 +885,9 @@
       '</div>',
       '</div>',
       '</header>',
-      '<div class="mp-lyric" aria-live="polite" aria-label="歌词">',
-      '<p class="mp-lyric__line"></p>',
+      '<div class="mp-lyric" id="mp-lyric-layer" aria-live="polite" aria-label="歌词">',
+      '<p class="mp-lyric__col"></p>',
+      '<p class="mp-lyric__col"></p>',
       '<p class="mp-lyric__trans" hidden></p>',
       '</div>',
       '<nav class="mp-tabs" aria-label="歌单切换"></nav>',
@@ -870,6 +903,15 @@
     ].join('');
 
     host.appendChild(pageEl);
+
+    /* 歌词层单独挂到 body。
+       它的祖先里有一层 div 带 backdrop-filter: blur(18px)，
+       而 backdrop-filter 和 transform 一样会创建包含块——
+       position: fixed 会退化成相对那层定位，top: 50% 算到页面中间去了。
+       挂到 body 下面就没有任何祖先能影响它。 */
+    var lyricNode = pageEl.querySelector('.mp-lyric');
+    if (lyricNode) document.body.appendChild(lyricNode);
+
     rowsEl = pageEl.querySelector('.mp-rows');
     mountLyric();
 
@@ -1139,8 +1181,10 @@
       pageEl = null;
       rowsEl = null;
       lyricEl = null;
-      lyricLineEl = null;
+      lyricColEls = [];
       lyricTransEl = null;
+      var layer = document.getElementById('mp-lyric-layer');
+      if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
     }
   }
 

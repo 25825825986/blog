@@ -987,57 +987,73 @@ html[data-theme="dark"] body.music-page .music-dock__time,
    字幕跟着声音走就够了，想往下看的欲望留给列表。
    纯音乐占这个站的绝大多数，那时这里显示署名，不留空白。
    -------------------------------------------------------------------- */
+/* 歌词：贴在页面左边的一幅竖排挂轴。
+   两列，从左往右读。fixed 所以滚动时一直挂着，
+   pointer-events: none 让它完全不挡点击。
+   祖先不能有 transform，否则 fixed 会退化成相对祖先定位。 */
 .mp-lyric {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  /* 列在容器里垂直居中。容器高度写死，不同字数的句子就都以
+     同一条中心线排，换句时不会整块上下跳。 */
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 84px;
-  margin-top: -6px;
-  padding: 4px 28px;
-  text-align: center;
+  gap: 18px;
+  height: 64vh;
   pointer-events: none;
+  user-select: none;
 }
 
-.mp-lyric__line {
+.mp-lyric__col {
   margin: 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
   font-size: 19px;
   line-height: 1.7;
-  letter-spacing: 0.01em;
+  /* 竖排的呼吸全在字距上。给到 0.32em 才像挂轴，
+     再小就成了一堆挤在一起的字 */
+  letter-spacing: 0.32em;
   color: #1f2d3d;
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.42s ease, transform 0.42s ease;
+  transition: opacity 0.42s ease;
+  max-height: 64vh;
+  overflow: hidden;
 }
 
-.mp-lyric__line.is-in {
+.mp-lyric.is-in .mp-lyric__col {
   opacity: 0.9;
-  transform: none;
 }
 
-/* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词 */
-.mp-lyric__line.is-pending {
+/* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词。
+   写在 is-in 后面，两者同时存在时以淡色为准。 */
+.mp-lyric.is-pending .mp-lyric__col {
   opacity: 0.32;
 }
 
 .mp-lyric__trans {
   margin: 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
   font-size: 12.5px;
   line-height: 1.6;
+  letter-spacing: 0.04em;
   color: #5d6879;
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.42s ease 0.06s, transform 0.42s ease 0.06s;
+  transition: opacity 0.42s ease 0.06s;
+  max-height: 64vh;
+  overflow: hidden;
 }
 
-.mp-lyric__trans.is-in {
+.mp-lyric.is-in .mp-lyric__trans {
   opacity: 0.88;
-  transform: none;
 }
 
-html[data-theme="dark"] .mp-lyric__line,
-.dark .mp-lyric__line {
+html[data-theme="dark"] .mp-lyric__col,
+.dark .mp-lyric__col {
   color: #e8eaed;
 }
 
@@ -1046,24 +1062,17 @@ html[data-theme="dark"] .mp-lyric__trans,
   color: #9aa3b0;
 }
 
+/* 手机上不挂这幅轴。
+   竖排两列要占 60~70px 宽，而 390px 的屏左侧根本没有留白——
+   卡片从 x=16 就开始了，歌词会直接压在封面和「共 N 首」上。 */
 @media (max-width: 768px) {
   .mp-lyric {
-    min-height: 70px;
-    padding: 2px 10px;
-  }
-
-  .mp-lyric__line {
-    font-size: 16px;
-    line-height: 1.65;
-  }
-
-  .mp-lyric__trans {
-    font-size: 12px;
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mp-lyric__line,
+  .mp-lyric__col,
   .mp-lyric__trans {
     transition: none;
   }
