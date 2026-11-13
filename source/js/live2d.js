@@ -46,6 +46,8 @@
   var raf = 0;
   var anim = null;
   var lastReact = 0;
+  var mix = {};        /* 参数 → 当前叠加量 */
+  var lastTick = 0;
 
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -203,9 +205,7 @@
         ParamAngleZ: 4.5 * Math.sin(7 * Math.PI * u) * env,
         ParamMouthOpenY: 0.45 * env,
         ParamBrowLY: 1 * env,
-        ParamBrowRY: 1 * env,
-        ParamEyeLOpen: 1,
-        ParamEyeROpen: 1
+        ParamBrowRY: 1 * env
       };
     } },
 
@@ -486,16 +486,51 @@
           m.internalModel.on('beforeModelUpdate', function () {
             try { core.setParameterValueById('Paramcol_3', 1); } catch (e) {}
 
+            /* 动作是「叠加」在模型算出来的姿势上的，不是覆盖。
+
+               直接覆盖会出两个问题，看着就是头在闪：
+               1) 模型每帧先算完光标跟随和呼吸，我们再把头角度盖成 0 起步，
+                  动作一结束又弹回视线角度——起落各跳一下；
+               2) 上一个动作没放完就被下一个打断时，头先归零再起。
+
+               所以只写差值，而且用一个 70ms 左右的时间常数淡入淡出：
+               打断时从当前叠加量直接往新目标走，中间不经过 0。 */
+            var now = performance.now();
+            var dt = lastTick ? Math.min(now - lastTick, 120) : 16.7;
+            lastTick = now;
+            var ease = 1 - Math.exp(-dt / 70);
+
+            var target = null;
             if (anim) {
-              var u = (performance.now() - anim.t0) / anim.dur;
-              if (u >= 1) {
-                anim = null;
-              } else {
-                var vals = anim.fn(u);
-                for (var k in vals) {
-                  try { core.setParameterValueById(k, vals[k]); } catch (e) {}
-                }
+              var u = (now - anim.t0) / anim.dur;
+              if (u >= 1) anim = null;
+              else target = anim.fn(u);
+            }
+
+            var k;
+            if (target) {
+              for (k in target) if (!(k in mix)) mix[k] = 0;
+            }
+
+            for (k in mix) {
+              var tv = (target && k in target) ? target[k] : 0;
+              mix[k] += (tv - mix[k]) * ease;
+              if (Math.abs(mix[k]) < 0.002 && tv === 0) {
+                delete mix[k];
+                continue;
               }
+              try {
+                /* 叠加不能超范围：光标停在角落时 focus 已经 +20°，再叠 18° 就破了。 */
+                var idx = core.getParameterIndex(k);
+                var v = core.getParameterValueById(k) + mix[k];
+                if (idx >= 0) {
+                  var lo = core.getParameterMinimumValue(idx);
+                  var hi = core.getParameterMaximumValue(idx);
+                  if (v < lo) v = lo;
+                  if (v > hi) v = hi;
+                }
+                core.setParameterValueById(k, v);
+              } catch (e) {}
             }
 
             if (STATE.speaking) {
