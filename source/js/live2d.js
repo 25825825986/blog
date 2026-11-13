@@ -3,7 +3,7 @@
 
    几处刻意的选择：
    - 全部 DOM 由脚本创建，不改主题模板，也不改 layout.pug。
-   - 首屏之后才加载，模型 17 MB + 引擎 770 KB，不能拖慢首屏。
+   - 首屏之后才加载，模型 1.8 MB + 引擎 770 KB，不能拖慢首屏。
    - 手机上不自动加载，先给一个小圆点，点了才下模型。
    - 容器 pointer-events: none，只有人物躯干那一小块热区可点。
    ------------------------------------------------------------------------ */
@@ -15,7 +15,7 @@
 
   var CFG = {
     vendor: '/live2d/vendor/',
-    model: '/live2d/models/dafeiyu/model.model3.json',
+    model: '/live2d/models/feiyu/feiyu.model3.json',
     api: '/api/chat',
     delay: 2600,
     turns: 8
@@ -44,9 +44,129 @@
   var app = null;
   var model = null;
   var raf = 0;
+  var anim = null;
 
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  /* ── 动作 ──────────────────────────────────────────────────────────────
+     这套模型作者只给了表情，没有 motion 文件。本来可以自己写 motion3.json，
+     但 pixi-live2d-display 一旦开始播 motion 就会跳过自动眨眼——她会一直
+     瞪着不眨眼。所以动作直接在主循环里用缓动函数推参数：每帧写一次，
+     Cubism 下一帧自己重置回默认值，互不干扰，眨眼照常。
+
+     参数方向是实测出来的：AngleY 正 = 低头、负 = 抬头；AngleX 正 = 转向
+     画面左侧；AngleZ 正 = 向左歪头。身体角度和手臂都是物理输出，写了也会
+     被物理覆盖，所以只用头部和五官。 */
+  function smooth(u, a, b) {
+    if (u <= a) return 0;
+    if (u >= b) return 1;
+    var x = (u - a) / (b - a);
+    return x * x * (3 - 2 * x);
+  }
+
+  function hold(u, a, b) {
+    return smooth(u, 0, a) * (1 - smooth(u, b, 1));
+  }
+
+  var ANIMS = {
+    /* 点头：先快后慢地低一下 */
+    nod: { dur: 1.05, fn: function (u) {
+      var b = Math.sin(Math.PI * u);
+      b = b * b;
+      return { ParamAngleY: 15 * b, ParamAngleZ: -1.6 * b };
+    } },
+
+    /* 摇头：左右各一个来回，两头淡入淡出 */
+    shake: { dur: 1.5, fn: function (u) {
+      var env = Math.sin(Math.PI * u);
+      var x = 13 * Math.sin(2 * Math.PI * 1.7 * u) * env;
+      return { ParamAngleX: x, ParamAngleZ: -x * 0.18 };
+    } },
+
+    /* 歪头：抬起来停一会儿，眼睛跟着往左上瞟 */
+    tilt: { dur: 2.6, fn: function (u) {
+      var h = hold(u, 0.16, 0.78);
+      return {
+        ParamAngleZ: 16 * h,
+        ParamAngleX: 3.5 * h,
+        ParamEyeBallY: 0.32 * h,
+        ParamEyeBallX: -0.2 * h,
+        ParamBrowLY: 0.22 * h
+      };
+    } },
+
+    /* 思考：歪头 + 眼睛往右上 + 抿嘴 */
+    think: { dur: 2.8, fn: function (u) {
+      var h = hold(u, 0.14, 0.82);
+      return {
+        ParamAngleZ: 10 * h,
+        ParamAngleY: -4.5 * h,
+        ParamEyeBallY: 0.5 * h,
+        ParamEyeBallX: 0.3 * h,
+        ParamBrowLY: 0.3 * h,
+        ParamBrowRY: 0.3 * h,
+        ParamMouthForm: 0.2 * h
+      };
+    } },
+
+    /* 惊讶：抬头、张嘴、挑眉，带一点抖 */
+    surprise: { dur: 1.0, fn: function (u) {
+      var b = Math.sin(Math.PI * Math.pow(u, 0.72));
+      return {
+        ParamAngleY: -11 * b,
+        ParamAngleZ: 2.2 * Math.sin(4 * Math.PI * u) * b,
+        ParamMouthOpenY: 0.5 * b,
+        ParamBrowLY: 0.85 * b,
+        ParamBrowRY: 0.85 * b
+      };
+    } },
+
+    /* 打盹：慢慢低头闭眼，最后惊醒抬头 */
+    sleepy: { dur: 3.6, fn: function (u) {
+      var wake = smooth(u, 0.84, 0.94);
+      var k = smooth(u, 0.06, 0.42) * (1 - wake);
+      var shut = smooth(u, 0.3, 0.5) * (1 - smooth(u, 0.86, 0.93));
+      return {
+        ParamAngleY: 13 * k,
+        ParamAngleZ: 5 * k,
+        ParamEyeLOpen: 1 - 0.94 * shut,
+        ParamEyeROpen: 1 - 0.94 * shut,
+        ParamMouthOpenY: 0.12 * shut
+      };
+    } },
+
+    /* 开心：闭眼笑，微微抬头 */
+    happy: { dur: 1.5, fn: function (u) {
+      var b = Math.sin(Math.PI * u);
+      var e = Math.min(1, b * 1.6);
+      return {
+        ParamAngleY: -5 * b,
+        ParamEyeSmile: 0.9 * e,
+        ParamEyeLOpen: 1 - 0.9 * e,
+        ParamEyeROpen: 1 - 0.9 * e,
+        ParamMouthOpenY: 0.22 * b,
+        ParamMouthForm: 0.55 * b
+      };
+    } }
+  };
+
+  /* 点她的时候随机挑一个。nod / tilt 权重高一点，太爱演反而吵。 */
+  var REACTIONS = ['nod', 'nod', 'tilt', 'tilt', 'shake', 'surprise', 'happy', 'sleepy'];
+  var lastReaction = '';
+
+  function react(name) {
+    var a = ANIMS[name];
+    if (!a) return;
+    anim = { t0: performance.now(), dur: a.dur * 1000, fn: a.fn };
+  }
+
+  function reactRandom() {
+    var n = pick(REACTIONS);
+    if (n === lastReaction) n = pick(REACTIONS);
+    lastReaction = n;
+    react(n);
   }
 
   function loadScript(src) {
@@ -87,7 +207,7 @@
     root.id = 'l2d';
     root.innerHTML =
       '<div class="l2d-canvas">' +
-      '  <img class="l2d-preview" src="/live2d/models/dafeiyu/preview.webp" alt="" decoding="async">' +
+      '  <img class="l2d-preview" src="/live2d/models/feiyu/preview.webp" alt="" decoding="async">' +
       '</div>' +
       '<div class="l2d-bar" aria-hidden="true"><i></i></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
@@ -173,6 +293,8 @@
       say(contextLine() || pick(GREETINGS));
     }
 
+    reactRandom();
+
     /* 气泡可能已经被自动打招呼打开，所以聚焦不能写在 else 里，
        否则第一次点她只会换一句词，光标不进输入框。 */
     setTimeout(function () {
@@ -235,20 +357,37 @@
         app.stage.addChild(m);
         layout();
 
-        /* 两件事都挂在同一根 ticker 上：Cubism 每帧会把参数和部件不透明度
-           重置回默认值，设一次不保持，只能每帧按住。
+        /* 三件事都写在渲染前，顺序不能乱：Cubism 每帧会把参数重置回默认值，
+           设一次不保持，只能每帧按住。
 
-           1) 第 16 个部件是鼻梁上一小块黑色贴片。作者自己的宣传图里没有它，
-              应该是导出时没关掉的辅助件，这里按住不让它显示。
-           2) 说话时驱动 ParamMouthOpenY，让嘴动起来。不发声，只是给个节奏。 */
+           时机很关键。库里的 update 是这样跑的：动作 → 表情 → 眨眼 → 物理
+           → 发 beforeModelUpdate → coreModel.update() 算网格 → loadParameters()
+           把参数还原。所以写在 ticker 或渲染前都会被还原掉，眼睛闭不上、
+           嘴张不开。beforeModelUpdate 是唯一“物理算完、网格还没算”的缝隙。
+
+           1) 水印：作者把「带水印 / 无水印」做成两套部件，靠 Paramcol_3 切。
+           2) 动作：见上面 ANIMS。
+           3) 口型：说话时驱动 ParamMouthOpenY。放最后，说话时口型优先。 */
         var core = null;
         var mouthPhase = 0;
         var wasSpeaking = false;
         try { core = m.internalModel.coreModel; } catch (e) {}
 
         if (core) {
-          app.ticker.add(function () {
-            try { core.setPartOpacityByIndex(16, 0); } catch (e) {}
+          m.internalModel.on('beforeModelUpdate', function () {
+            try { core.setParameterValueById('Paramcol_3', 1); } catch (e) {}
+
+            if (anim) {
+              var u = (performance.now() - anim.t0) / anim.dur;
+              if (u >= 1) {
+                anim = null;
+              } else {
+                var vals = anim.fn(u);
+                for (var k in vals) {
+                  try { core.setParameterValueById(k, vals[k]); } catch (e) {}
+                }
+              }
+            }
 
             if (STATE.speaking) {
               wasSpeaking = true;
@@ -261,11 +400,6 @@
             }
           });
         }
-
-        try {
-          m.internalModel.motionManager.groups.idle = 'Idle';
-          m.internalModel.motionManager.startRandomMotion('Idle');
-        } catch (e) {}
 
         bindFocus();
         document.addEventListener('visibilitychange', onVisibility);
@@ -326,6 +460,7 @@
       if (STATE.open) return;
       openBubble();
       say(contextLine() || pick(GREETINGS));
+      react('happy');
       /* 用户一旦自己点开过，就不再自动收 */
       setTimeout(function () {
         if (!STATE.busy && !STATE.interacted) closeBubble();
@@ -348,6 +483,7 @@
     STATE.interacted = true;
 
     setBusy(true);
+    react('think');
     el.text.textContent = '';
     el.text.classList.add('is-typing');
 
@@ -369,6 +505,7 @@
     }).then(function (full) {
       el.text.classList.remove('is-typing');
       setBusy(false);
+      react('nod');
       if (full) {
         STATE.history.push({ role: 'user', content: q });
         STATE.history.push({ role: 'assistant', content: full });
