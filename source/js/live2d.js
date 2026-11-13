@@ -306,24 +306,54 @@
      挡正文了。 */
   var WALK = {
     range: 110,      // 能往左踱多远
-    minDur: 1600,
-    maxDur: 2600,
-    minGap: 24000,   // 两次踱步之间至少隔多久
-    maxGap: 46000
+    minDur: 1100,
+    maxDur: 1700,
+    stepDur: 380,    // 一步多少毫秒，决定步频
+    minGap: 18000,   // 两次踱步之间至少隔多久
+    maxGap: 34000
   }
 
-  var walk = { x: 0, active: false, from: 0, to: 0, t0: 0, dur: 0, dir: 0 }
+  /* 步态的幅度。
+
+     这套模型没有腿骨，但作者留了肩/肘/腕/手三段、四段身体旋转
+     （BodyAngleZ1/Z2/Z11/Z22）、五段尾巴、六段裙摆——够拼出一副
+     「整个身子在动」的样子，只是它们全是物理输出，之前被当成禁区跳过了。
+
+     做法：物理每帧按 BodyAngle 的惯性先算一遍，我们在 beforeModelUpdate
+     里读它的结果，再叠一个和步频同步的增量。物理管惯性和余韵，我们管
+     节奏，两边都不丢。 */
+  var GAIT = {
+    bobPx: 7.2,     // 整体上下起伏（像素）。真人走路头起伏约 2% 身高，太小看不出来
+    tilt: 0.75,     // 整个容器绕脚底转一点，重心在两脚间转移
+    sway: 2.2,      // 身体左右倾 ParamBodyAngleZ
+    hip: 1.5,       // 胯。BodyAngleZ1/Z2 实测是腰以下那段，能让裙摆和腿跟着摆
+    twist: 1.8,     // 身体左右转 ParamBodyAngleX
+    arm: 2.2,       // 肩摆。正面看肩转就是外展，给大了像在招手
+    elbow: 1.6,     // 肘
+    wrist: 0.9,     // 腕
+    headZ: 1.0,     // 头做反向稳定，真人走路头是稳的
+    tail: 1.5,      // 尾巴第一段
+    skirt: 2.4      // 裙摆第一段
+  }
+
+  var walk = { x: 0, active: false, from: 0, to: 0, t0: 0, dur: 0, dir: 0,
+               ph: 0, sway: 0, bob: 0 }
   var walkTimer = 0
   var lastScroll = 0
 
   /* 人在滚页面的时候别乱动，会分神 */
   document.addEventListener('scroll', function () { lastScroll = Date.now() }, { passive: true })
 
-  function applyShift (x, bob) {
+  function applyShift (x, bob, tilt) {
     /* 只动容器。气泡是它的子节点，会跟着一起走——
        前提是气泡用 absolute 定位，用 fixed 的话会被 transform
-       抢成包含块，位置就飘了。 */
-    el.root.style.transform = 'translate3d(' + x + 'px,' + bob + 'px,0)'
+       抢成包含块，位置就飘了。
+
+       tilt 是绕脚底转半度。加它是因为模型没腿，光靠平移的话
+       脚钉在原地、上身却在晃，反而更像立牌。整体一起转，脚也跟着
+       重心走，才像“人在走”而不是“人在滑”。 */
+    el.root.style.transform = 'translate3d(' + x + 'px,' + bob + 'px,0)' +
+      (tilt && tilt !== '0' ? ' rotate(' + tilt + 'deg)' : '')
   }
 
   function stopWalk () {
@@ -344,12 +374,16 @@
   }
 
   function stepWalk (now) {
-    if (!walk.active) return
+    if (!walk.active) {
+      walk.ph = 0; walk.sway = 0; walk.bob = 0
+      return
+    }
 
     var u = (now - walk.t0) / walk.dur
     if (u >= 1) {
       walk.x = walk.to
       walk.active = false
+      walk.ph = 0; walk.sway = 0; walk.bob = 0
       applyShift(walk.x.toFixed(1), '0')
       el.root.classList.remove('is-walking')
       return
@@ -359,9 +393,26 @@
     var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2
     walk.x = walk.from + (walk.to - walk.from) * e
 
-    /* 起伏按步频走，两端乘以 sin 包络，不然起步那一下会突兀地跳 */
-    var bob = Math.sin(u * Math.PI * 9) * 3.4 * Math.sin(Math.PI * u)
-    applyShift(walk.x.toFixed(1), bob.toFixed(1))
+    /* 步频。这里原来写死 sin(u * PI * 9)：1.6 秒里抖 4.5 个来回，
+       合到 4.5 Hz，人走路才 1.5~2 Hz。抖成那样不是走路，是筛糠。
+       改成按步长算：一步 stepDur 毫秒，慢踱两秒也就三四步。 */
+    var steps = Math.max(2, Math.round(walk.dur / WALK.stepDur))
+    var ph = u * Math.PI * 2 * steps
+
+    /* 两端收到 0，不然起步和收尾那一下会突兀地跳 */
+    var env = Math.sin(Math.PI * u)
+
+    /* sway 左右交替 −1..1；bob 每步起伏一次。
+       人走路重心在双脚支撑时最低，所以取 |sin|。
+
+       减 0.5 是为了把它拉成以 0 为中心：之前全是负值，她一路往下沉，
+       而脚底贴着视口底，沉多少就被裁掉多少。 */
+    walk.ph = ph
+    walk.sway = Math.sin(ph) * env
+    walk.bob = (0.5 - Math.abs(Math.sin(ph))) * env
+
+    applyShift(walk.x.toFixed(1), (walk.bob * GAIT.bobPx).toFixed(1),
+               (walk.sway * GAIT.tilt).toFixed(2))
   }
 
   function scheduleWalk () {
@@ -636,6 +687,11 @@
         var wasSpeaking = false;
         try { core = m.internalModel.coreModel; } catch (e) {}
 
+        /* 调试钩子：控制台里能直接摸参数，验收脚本也靠它。
+           __l2d.walkTo(-110) 可以立刻让她走一段。 */
+        window.__l2d = { app: app, model: m, core: core, walkTo: walkTo,
+                         walk: walk, WALK: WALK, GAIT: GAIT };
+
         if (core) {
           m.internalModel.on('beforeModelUpdate', function () {
             try { core.setParameterValueById('Paramcol_3', 1); } catch (e) {}
@@ -676,13 +732,58 @@
               target.ParamMouthForm = (target.ParamMouthForm || 0) + 0.1 * hover;
             }
 
-            /* 走动时头朝行进方向偏，眼睛先看过去。停下后 active 变 false，
-               叠加量会自己衰减回 0。 */
+            /* 走路的「骨骼」。模型没有腿，但肩、肘、腕、四段身体旋转、
+               五段尾巴、六段裙摆都在，把她们按同一个步频串起来，看着就是
+               整个身子在动，而不是一块立牌在平移。
+
+               全部写成增量：物理这一帧已经按惯性算过一遍了，我们只加
+               和步频同步的那一部分，物理的余韵还在。 */
             if (walk.active) {
               if (!target) target = {};
-              target.ParamAngleX = (target.ParamAngleX || 0) + walk.dir * 12;
-              target.ParamEyeBallX = (target.ParamEyeBallX || 0) + walk.dir * 0.5;
-              target.ParamAngleZ = (target.ParamAngleZ || 0) - walk.dir * 3;
+              var s = walk.sway;
+              var d = walk.dir;
+              var i, w;
+
+              /* 头朝行进方向偏，眼睛先看过去；头再反向稳住一点 */
+              target.ParamAngleX = (target.ParamAngleX || 0) + d * 7;
+              target.ParamEyeBallX = (target.ParamEyeBallX || 0) + d * 0.5;
+              target.ParamAngleZ = (target.ParamAngleZ || 0) - s * GAIT.headZ;
+
+              /* 重心左右转移：身体往迈出去的那条腿一侧倾，肩膀反着拧 */
+              target.ParamBodyAngleZ = (target.ParamBodyAngleZ || 0) + s * GAIT.sway;
+              target.ParamBodyAngleX = (target.ParamBodyAngleX || 0) + s * GAIT.twist;
+
+              /* 胯部。Z1/Z2 是腰以下那一段，单独转一下，裙摆和腿就会
+                 跟着摆——没有腿骨也能看到下半身在动。Z2 比 Z1 多给
+                 一点，重心是从上往下传的。 */
+              target.ParamBodyAngleZ1 = (target.ParamBodyAngleZ1 || 0) + s * GAIT.hip;
+              target.ParamBodyAngleZ2 = (target.ParamBodyAngleZ2 || 0) + s * GAIT.hip * 1.4;
+
+              /* 摆臂：左右反相。同相摆像在原地甩手，反而比不摆更假。 */
+              target.Param_arm_L1 = (target.Param_arm_L1 || 0) + s * GAIT.arm;
+              target.Param_arm_R1 = (target.Param_arm_R1 || 0) - s * GAIT.arm;
+
+              /* 肘和腕带半拍延迟，摆到最前面时自然弯一下 */
+              var e2 = Math.sin(walk.ph - 0.7);
+              target.Param_arm_L2 = (target.Param_arm_L2 || 0) - e2 * GAIT.elbow;
+              target.Param_arm_R2 = (target.Param_arm_R2 || 0) + e2 * GAIT.elbow;
+              target.Param_arm_L3 = (target.Param_arm_L3 || 0) - e2 * GAIT.wrist;
+              target.Param_arm_R3 = (target.Param_arm_R3 || 0) + e2 * GAIT.wrist;
+
+              /* 尾巴和裙摆：每段比上一段晚一点、幅度大一点，串成一条
+                 从根部往梢上走的波浪。尾巴是这套模型最出戏的地方，
+                 走起来不摆就假。 */
+              for (i = 0; i < 5; i++) {
+                w = Math.sin(walk.ph - 0.42 * i);
+                target['Param_Angle_Rotation_' + (i + 2) + '_ArtMesh367'] =
+                  (target['Param_Angle_Rotation_' + (i + 2) + '_ArtMesh367'] || 0) +
+                  w * GAIT.tail * (1 + i * 0.45);
+              }
+              for (i = 0; i < 6; i++) {
+                w = Math.sin(walk.ph - 0.38 * i);
+                target['ParamYFWL_' + (i + 1)] =
+                  (target['ParamYFWL_' + (i + 1)] || 0) + w * GAIT.skirt * (1 + i * 0.3);
+              }
             }
 
             var k;
