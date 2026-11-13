@@ -33,21 +33,21 @@
 
   /* 被摸头的反应。轻一点，别一惊一乍：她只是被人顺手摸了一下。 */
   var PATS = [
-    '……干嘛。',
-    '头发要乱了。',
-    '唔。',
-    '摸头长不高的。',
-    '就一下啊。',
-    '你手挺凉。'
+    '……干嘛',
+    '头发要乱了',
+    '唔',
+    '摸头长不高的',
+    '就一下啊',
+    '你手挺凉'
   ];
 
   var GREETINGS = [
-    '来了。随便看。',
-    '想聊什么？站里的事我大概都知道。',
-    '六篇，写的都是踩过的坑。',
-    '有问题问我。答不上来我会说不知道。',
-    '慢点看，不着急。',
-    '这站空过十个月，最近才有点人气。'
+    '来了，随便看',
+    '想聊什么？站里的事我大概都知道',
+    '六篇，写的都是踩过的坑',
+    '有问题问我，答不上来我会说不知道',
+    '慢点看，不着急',
+    '这站空过十个月，最近才有点人气'
   ];
 
   var el = {};
@@ -314,11 +314,11 @@
     var title = (document.title || '').split('|')[0].trim();
     var path = location.pathname;
     if (path.indexOf('/post/') === 0 && title) {
-      return '这篇《' + title + '》。看完了？有不懂的问我。';
+      return '这篇《' + title + '》，看完了？有不懂的问我';
     }
-    if (path.indexOf('/music/') === 0) return '在听歌啊。歌单是我接的。';
-    if (path === '/' || path === '/index.html') return '欢迎。上面几篇都是最近写的。';
-    if (path.indexOf('/archives') === 0) return '都在这儿了，按时间排的。';
+    if (path.indexOf('/music/') === 0) return '在听歌啊，歌单是我接的';
+    if (path === '/' || path === '/index.html') return '欢迎，上面几篇都是最近写的';
+    if (path.indexOf('/archives') === 0) return '都在这儿了，按时间排的';
     return '';
   }
 
@@ -735,7 +735,7 @@
         STATE.history.push({ role: 'assistant', content: full });
         STATE.history = STATE.history.slice(-CFG.turns * 2);
       } else {
-        say('……我走神了。再说一遍？');
+        say('……我走神了，再说一遍？');
       }
     }).catch(function (err) {
       el.text.classList.remove('is-typing');
@@ -792,10 +792,10 @@
 
   function errorLine(err) {
     var m = String((err && err.message) || '');
-    if (m.indexOf('no-key') >= 0) return '我还没接上脑子。站主没给我配钥匙，先这样吧。';
-    if (m.indexOf('quota') >= 0) return '今天说太多了，明天再来。';
-    if (m.indexOf('rate') >= 0) return '你问得有点快，等我一下。';
-    return '连不上了。可能是我这边的问题，等会儿再试。';
+    if (m.indexOf('no-key') >= 0) return '我还没接上脑子，站主没给我配钥匙，先这样吧';
+    if (m.indexOf('quota') >= 0) return '今天说太多了，明天再来';
+    if (m.indexOf('rate') >= 0) return '你问得有点快，等我一下';
+    return '连不上了，可能是我这边的问题，等会儿再试';
   }
 
   function schedule() {

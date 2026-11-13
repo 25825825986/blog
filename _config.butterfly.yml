@@ -1252,7 +1252,7 @@ inject:
   # 侧边栏时间卡片（读本地时间，每秒刷新；农历/节气按天刷新）
   - <script defer src="/js/clock-card.js?v=20261110b"></script>
   # 看板娘（自己判断何时加载，这里只是把它挂上去）
-  - <script defer src="/js/live2d.js?v=20261113k"></script>
+  - <script defer src="/js/live2d.js?v=20261113m"></script>
 
 # CDN 设置
 # 除非你知道它们的工作原理，否则不要修改以下设置
