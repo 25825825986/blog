@@ -15,7 +15,7 @@
 
   var CFG = {
     vendor: '/live2d/vendor/',
-    model: '/live2d/models/hiyori/Hiyori.model3.json',
+    model: '/live2d/models/feiyu/feiyu.model3.json',
     api: '/api/chat',
     delay: 2600,
     turns: 8
@@ -184,7 +184,7 @@
     if (!el.root) buildDom();
 
     loadScript(CFG.vendor + 'pixi.min.js')
-      .then(function () { return loadScript(CFG.vendor + 'cubismcore.min.js'); })
+      .then(function () { return loadScript(CFG.vendor + 'cubismcore5.min.js'); })
       .then(function () { return loadScript(CFG.vendor + 'cubism4.min.js'); })
       .then(initModel)
       .then(function () {
@@ -225,6 +225,18 @@
         model = m;
         app.stage.addChild(m);
         layout();
+
+        /* 这套模型把「带水印」和「无水印」做成两套部件，靠 Paramcol_3 切换。
+           Cubism 每帧都会把参数重置回默认值，所以得挂在 ticker 上一直按住。 */
+        try {
+          var core = m.internalModel.coreModel;
+          core.setParameterValueById('Paramcol_3', 1.0);
+          app.ticker.add(function () {
+            core.setParameterValueById('Paramcol_3', 1.0);
+          });
+        } catch (e) {
+          console.warn('[l2d] 水印开关失效', e);
+        }
 
         try {
           m.internalModel.motionManager.groups.idle = 'Idle';
