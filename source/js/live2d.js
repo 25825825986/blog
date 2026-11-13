@@ -646,23 +646,48 @@
     else app.ticker.start();
   }
 
+  /* 视线跟随。
+
+     不用 model.focus()。它收的是舞台坐标，内部走 toModelPosition → 归一化
+     → atan2 → 取单位向量，所以：
+       1) 传 -1..1 这种归一化值，等于说「画布左上角附近的某个点」，方向恒定
+          指向左上，她会一直斜着眼看左边；
+       2) 它永远返回单位向量，算不出「正前方」，focus(0,0) 同样指左上。
+
+     直接驱动 focusController，它收的才是 -1..1：x 正 = 看画面右侧，
+     y 正 = 低头（ParamAngleY 正为低头，实测）。方向按模型中心算，
+     这样鼠标在她右边她就往右看，而不是按视口中心算。 */
   function bindFocus() {
     document.addEventListener('pointermove', function (e) {
-      if (!model) return;
-      var fx = (e.clientX / window.innerWidth) * 2 - 1;
-      var fy = (e.clientY / window.innerHeight) * 2 - 1;
+      if (!model || !app) return;
       if (raf) return;
+      var cx = e.clientX, cy = e.clientY;
       raf = requestAnimationFrame(function () {
         raf = 0;
-        try { model.focus(fx * 0.7, -fy * 0.7); } catch (err) {}
+        try {
+          var r = app.view.getBoundingClientRect();
+          var ox = r.left + r.width * 0.5;
+          var oy = r.top + r.height * 0.5;
+
+          /* 按「到哪一侧边界」分别归一化，不能用视口半宽除：
+             她在右下角，右边只剩一百多像素，统一除半宽的话鼠标推到最右
+             也只有 0.1 的偏移，看着像没反应。 */
+          var dx = cx - ox, dy = cy - oy;
+          var fx = dx >= 0 ? dx / Math.max(1, window.innerWidth - ox)
+                           : dx / Math.max(1, ox);
+          var fy = dy >= 0 ? dy / Math.max(1, window.innerHeight - oy)
+                           : dy / Math.max(1, oy);
+
+          model.internalModel.focusController.focus(fx * 0.85, fy * 0.85);
+        } catch (err) {}
       });
     }, { passive: true });
 
-    /* 鼠标移出窗口时把视线收回正前方。不处理的话她会一直斜着眼睛
-       盯着你最后停的那个角落。库里的 focus 本身就是平滑的，给 0 就行。 */
+    /* 鼠标移出窗口时把视线收回正前方。这里必须是 focusController 的 (0,0)，
+       走 model.focus 会得到左上角。 */
     function recenter() {
       if (!model) return;
-      try { model.focus(0, 0); } catch (err) {}
+      try { model.internalModel.focusController.focus(0, 0); } catch (err) {}
     }
 
     document.addEventListener('pointerout', function (e) {
