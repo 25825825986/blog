@@ -112,7 +112,9 @@
   height: calc(100% - 96px);
   transform: translateX(-50%);
   pointer-events: auto;
-  cursor: pointer;
+  /* 触摸时不要把拖动手势交给页面滚动 */
+  touch-action: none;
+  cursor: grab;
   border-radius: 60px 60px 0 0;
   -webkit-tap-highlight-color: transparent;
 }
@@ -127,9 +129,24 @@
   height: 96px;
   transform: translateX(-50%);
   pointer-events: auto;
-  cursor: pointer;
+  /* 触摸时不要把拖动手势交给页面滚动 */
+  touch-action: none;
+  cursor: grab;
   border-radius: 52px 52px 34px 34px;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* 站点在 effects.css 里用 html [role="button"] 给所有按钮角色套了笔尖光标
+   （带 !important），两块热区正好都带 role="button"，会被盖掉。
+   这里用更高的特异性加回可拖动的暗示：平时张开手，拖的时候握住。 */
+.l2d .l2d-hit,
+.l2d .l2d-head {
+  cursor: grab !important;
+}
+
+.l2d.is-dragging .l2d-hit,
+.l2d.is-dragging .l2d-head {
+  cursor: grabbing !important;
 }
 
 .l2d-hit:focus-visible {

@@ -62,6 +62,16 @@
   var hoverOn = false;
   var hoverTimer = 0;
 
+  /* 拖动：pos 是「从右下角往左上偏多少」，永远 >= 0。
+     不用 left/top，是因为容器本来就是 right:0; bottom:0，
+     换成 left/top 还要在 resize 时重算；而 translate 不参与布局，
+     拖的时候不会触发重排，气泡和热区作为 .l2d 的 absolute 子节点
+     也会自动跟着走。 */
+  var DRAG = { minDist: 4, key: 'l2d-pos-v1' };
+  var pos = { x: 0, y: 0 };
+  var drag = { on: false, id: 0, sx: 0, sy: 0, ox: 0, oy: 0,
+               moved: false, justDragged: false };
+
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
   }
@@ -375,6 +385,14 @@
     [el.head, el.hit].forEach(function (node) {
       node.addEventListener('pointerenter', onHoverIn);
       node.addEventListener('pointerleave', onHoverOut);
+
+      /* 拖动。两块热区都能拖，拖的是整个容器。
+         setPointerCapture 之后 move/up 会一直发到按下时那个节点，
+         拖出热区、拖到屏幕边上都不会断。 */
+      node.addEventListener('pointerdown', onDragStart);
+      node.addEventListener('pointermove', onDragMove);
+      node.addEventListener('pointerup', onDragEnd);
+      node.addEventListener('pointercancel', onDragEnd);
     });
     el.form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -421,6 +439,7 @@
   }
 
   function onPoke() {
+    if (drag.justDragged) { drag.justDragged = false; return; }
     if (STATE.busy) return;
     STATE.interacted = true;
 
@@ -443,6 +462,8 @@
   }
 
   function onHoverIn() {
+    /* 拖着走的时候别抬眼看你，手一抖就会在拖和看之间反复横跳 */
+    if (drag.on) return;
     clearTimeout(hoverTimer);
     hoverOn = true;
   }
@@ -452,7 +473,125 @@
     hoverTimer = setTimeout(function () { hoverOn = false; }, 80);
   }
 
+  /* ── 拖动 ──────────────────────────────────────────────────────────────
+     她默认钉在右下角，但那块地方有时候正好压着正文、按钮或者返回顶部。
+     拖开就行，位置存本地，下次进来还在那儿。
+
+     拖动和点击靠位移阈值分开：超过 4px 才算拖，否则还是点击。
+     拖过之后的那个 click 必须吞掉，不然一松手就弹出气泡。 */
+  /* 气泡是 absolute 相对 .l2d 定位的，而且比容器宽（240 vs 258/300）、
+     往上长。拖到边上之后点她，气泡会整个跑到屏幕外，看着就像「点了
+     没反应」。所以拖动范围里得把气泡那块的量预留出来。
+
+     横向：气泡 right 对齐容器中心，左边缘落在容器左边界外
+           (240 − 宽/2) 的地方，宽 258 时是 111px。
+     纵向：气泡最高约 200px（文字区 max-height 168 + padding + 输入框）。 */
+  function bubbleRoom() {
+    var w = el.root.offsetWidth;
+    var bw = Math.min(240, window.innerWidth - 40);   /* 跟 CSS 的 max-width 一致 */
+    return {
+      x: Math.max(0, bw - w * 0.5),
+      y: 200
+    };
+  }
+
+  function clampPos(x, y) {
+    var room = bubbleRoom();
+    var maxX = Math.max(0, window.innerWidth - el.root.offsetWidth - room.x);
+    var maxY = Math.max(0, window.innerHeight - el.root.offsetHeight - room.y);
+    return {
+      x: Math.min(Math.max(0, x), maxX),
+      y: Math.min(Math.max(0, y), maxY)
+    };
+  }
+
+  function setPos(x, y, save) {
+    var p = clampPos(x, y);
+    pos.x = p.x;
+    pos.y = p.y;
+
+    /* 回到原点就把 transform 摘掉，不写一个 0,0 的 translate */
+    el.root.style.transform = (pos.x || pos.y)
+      ? 'translate3d(' + (-pos.x).toFixed(1) + 'px,' + (-pos.y).toFixed(1) + 'px,0)'
+      : '';
+
+    if (save) {
+      try {
+        localStorage.setItem(DRAG.key, JSON.stringify({
+          x: Math.round(pos.x), y: Math.round(pos.y)
+        }));
+      } catch (e) {}
+    }
+  }
+
+  function loadPos() {
+    try {
+      var raw = localStorage.getItem(DRAG.key);
+      if (!raw) return;
+      var o = JSON.parse(raw);
+      /* 换了小屏进来时原来的位置可能已经在屏幕外，setPos 里会再夹一道 */
+      if (o && isFinite(o.x) && isFinite(o.y)) setPos(o.x, o.y);
+    } catch (e) {}
+  }
+
+  function onDragStart(e) {
+    /* 只认左键。触摸和笔没有 button 概念，不拦 */
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    drag.on = true;
+    drag.id = e.pointerId;
+    drag.sx = e.clientX;
+    drag.sy = e.clientY;
+    drag.ox = pos.x;
+    drag.oy = pos.y;
+    drag.moved = false;
+    drag.justDragged = false;
+
+    /* 拖动时把「抬眼看你」压下去，不然她一路仰着头被你拖 */
+    hoverOn = false;
+    clearTimeout(hoverTimer);
+
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  function onDragMove(e) {
+    if (!drag.on || e.pointerId !== drag.id) return;
+
+    var dx = e.clientX - drag.sx;
+    var dy = e.clientY - drag.sy;
+
+    if (!drag.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < DRAG.minDist) return;
+      drag.moved = true;
+      el.root.classList.add('is-dragging');
+    }
+
+    /* 鼠标往左走 dx 是负的，她也要往左，所以是 ox - dx */
+    setPos(drag.ox - dx, drag.oy - dy);
+  }
+
+  function onDragEnd(e) {
+    if (!drag.on) return;
+    drag.on = false;
+    el.root.classList.remove('is-dragging');
+
+    if (drag.moved) {
+      /* 留给紧跟其后的那个 click：吞掉它，别一松手就开气泡 */
+      drag.justDragged = true;
+      setPos(pos.x, pos.y, true);
+    }
+
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) {}
+
+    /* 松手时指针可能还停在她身上，把悬停接回来 */
+    if (el.hit.matches(':hover') || el.head.matches(':hover')) {
+      clearTimeout(hoverTimer);
+      hoverOn = true;
+    }
+  }
+
   function onPat() {
+    if (drag.justDragged) { drag.justDragged = false; return; }
     if (STATE.busy) return;
     STATE.interacted = true;
 
@@ -473,6 +612,7 @@
     STATE.booting = true;
 
     if (!el.root) buildDom();
+    loadPos();
 
     /* 先让静态图出来顶着。9.4 MB 的 moc3 在慢网下要二十几秒，
        空着右下角会让人以为坏了。 */
@@ -644,6 +784,8 @@
     if (!w || !h) return;
     app.renderer.resize(w, h);
     layout();
+    /* 窗口变小后存的位置可能已经在屏幕外，重新夹一道 */
+    if (el.root) setPos(pos.x, pos.y);
   }
 
   function onVisibility() {
