@@ -5,8 +5,14 @@
  * 而今日诗词一次只返回一句，于是同一句会被无限重打。
  *
  * 这里的做法：页面打开时取一小批句子存在本地，按队列播放，
- * 队列播完就重新洗牌复用，隔几轮再补一两句新的。句子允许复用，
- * 接口调用量很低（一次打开约 8 次，之后每 3 轮补 2 次）。
+ * 队列播完就重新洗牌复用，隔几轮再补一两句新的。句子允许复用。
+ *
+ * 接口按 IP 限速，实测每秒超过两次就返 403，而且 403 的响应体是空的，
+ * 前端只能看到一个光秃秃的状态码。所以：
+ *   1) 所有请求排成一条串行队列，两次之间至少隔 700ms；
+ *   2) 取到的句子存 localStorage，下次打开先用旧的直接开播，
+ *      有缓存时一次都不请求；
+ *   3) 一旦撞到 403 就停止本轮补句，越打只会限得越久。
  */
 ;(function () {
   'use strict'
@@ -20,6 +26,11 @@
 
   var API = 'https://v2.jinrishici.com/one.json?client=browser-sdk/1.2'
   var TOKEN_KEY = 'jinrishici-token'
+  var CACHE_KEY = 'poem-cache-v1'
+
+  /* 两次请求的最小间隔。实测 400ms 时第六个就 403，600ms 能过，
+     取 700ms 留余量。 */
+  var MIN_GAP = 700
 
   // ── 节奏参数：按「整句」计时长，不是单字间隔 ──
   var TYPE_MS = 3000 // 一句打完用多久
@@ -27,10 +38,11 @@
   var ERASE_MS = 1500 // 一句退格用多久
 
   // ── 取词参数 ──
-  var POOL_SIZE = 8 // 每次打开页面先取几句
-  var REFILL_COUNT = 2 // 每次补几句新的
+  var POOL_SIZE = 5 // 每次打开页面先取几句（限速下不宜多）
+  var REFILL_COUNT = 1 // 每次补几句新的
   var REFILL_EVERY = 3 // 每播完几轮补一次（接口当天往往只给同一首诗的句子，补太勤也是重复的）
   var ARCHIVE_LIMIT = 60 // 最多记住多少句，控制单轮长度
+  var CACHE_LIMIT = 60 // 本地缓存上限
   var WAIT_MS = 800 // 暂时没有可播的句子时等多久
   var RETRY_MS = 5000 // 异常时的重试间隔
 
@@ -87,12 +99,54 @@
     } catch (err) {}
   }
 
-  function requestPoem () {
+  /* ---------- 本地缓存 ----------
+     取到的句子存下来，下次打开先用旧的直接开播。限速是按 IP 的，
+     同一台机器反复刷新页面时，缓存能把请求量降到零。 */
+
+  function readCache () {
+    try {
+      var raw = window.localStorage.getItem(CACHE_KEY)
+      if (!raw) return []
+      var arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) return []
+      return arr.filter(function (x) {
+        return typeof x === 'string' && x
+      })
+    } catch (err) {
+      return []
+    }
+  }
+
+  function saveCache (list) {
+    try {
+      window.localStorage.setItem(CACHE_KEY, JSON.stringify(list.slice(-CACHE_LIMIT)))
+    } catch (err) {}
+  }
+
+  /* ---------- 请求（串行 + 限速） ----------
+     接口按 IP 限速，实测每秒超过两次就 403，响应体为空。
+     所以所有请求串成一条链，前一个回来再等 MIN_GAP 才发下一个。 */
+
+  var lastReqAt = 0
+  var reqChain = Promise.resolve()
+
+  function sleep (ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms)
+    })
+  }
+
+  function doFetch () {
     var token = readToken()
     var url = API + (token ? '&X-User-Token=' + encodeURIComponent(token) : '')
 
     return fetch(url, { credentials: 'omit' })
       .then(function (res) {
+        if (res.status === 403) {
+          var err = new Error('HTTP 403')
+          err.rateLimited = true
+          throw err
+        }
         if (!res.ok) throw new Error('HTTP ' + res.status)
         return res.json()
       })
@@ -105,21 +159,42 @@
       })
   }
 
-  // 并发取几句，最多 3 个请求同时跑；取到一句就放进队列，不必等整批
+  function requestPoem () {
+    var run = reqChain.then(function () {
+      var wait = MIN_GAP - (Date.now() - lastReqAt)
+      if (wait < 0) wait = 0
+      return sleep(wait).then(function () {
+        lastReqAt = Date.now()
+        return doFetch()
+      })
+    })
+
+    // 链本身不能因为一次失败就断掉
+    reqChain = run.then(function () {}, function () {})
+    return run
+  }
+
+  /* 取几句。requestPoem 自己会排队限速，这里开两个 worker 只是让队列
+     不至于因为一次失败就断掉；真正发出去的请求永远是一条一条的。 */
   function fillPool (count) {
     var started = 0
+    var stopped = false
 
     function worker () {
-      if (started >= count) return Promise.resolve()
+      if (stopped || started >= count) return Promise.resolve()
       started++
       pendingFetches++
 
       return requestPoem()
         .then(function (line) {
           addToArchive(line)
+          saveCache(archive)
           if (line !== lastLine && pool.indexOf(line) === -1) pool.push(line)
         })
-        .catch(function () {})
+        .catch(function (err) {
+          // 撞到限速就别继续了，越打恢复得越慢
+          if (err && err.rateLimited) stopped = true
+        })
         .then(function () {
           pendingFetches--
           return worker()
@@ -127,7 +202,7 @@
     }
 
     var workers = []
-    for (var i = 0; i < Math.min(3, count); i++) workers.push(worker())
+    for (var i = 0; i < Math.min(2, count); i++) workers.push(worker())
     return Promise.all(workers)
   }
 
@@ -328,7 +403,18 @@
       el.parentNode.insertBefore(caret, el.nextSibling)
     }
 
-    fillPool(POOL_SIZE)
+    /* 先用上次存下的句子开播，不等网络。
+       有缓存时连一次请求都不用发，刷新页面也不会再去撞限速。 */
+    var cached = readCache()
+    if (cached.length) {
+      cached.forEach(addToArchive)
+      pool = pool.concat(shuffle(cached.slice()))
+    }
+
+    // 缓存够用就只补一句新的，不够才补到 POOL_SIZE
+    var need = POOL_SIZE - cached.length
+    fillPool(need > 0 ? need : 1)
+
     whenReady(cycle)
   }
 

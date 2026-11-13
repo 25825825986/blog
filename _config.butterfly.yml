@@ -1242,7 +1242,7 @@ inject:
   - <canvas id="daylight" aria-hidden="true"></canvas>
   - <script defer src="/js/daylight.js"></script>
   # 首页副标题诗句轮播（同一会话内不重复）
-  - <script defer src="/js/poem-subtitle.js?v=20261111a"></script>
+  - <script defer src="/js/poem-subtitle.js?v=20261113a"></script>
   # 鼠标点击的星尘涟漪
   - <script defer src="/js/mouse-effect.js"></script>
   # 页面跳转后把笔尖光标提回来（浏览器会把光标重置成系统箭头）
