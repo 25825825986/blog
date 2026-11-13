@@ -3,7 +3,7 @@
 
    几处刻意的选择：
    - 全部 DOM 由脚本创建，不改主题模板，也不改 layout.pug。
-   - 首屏之后才加载，模型 1.2 MB + 引擎 720 KB，不能拖慢首屏。
+   - 首屏之后才加载，模型 17 MB + 引擎 770 KB，不能拖慢首屏。
    - 手机上不自动加载，先给一个小圆点，点了才下模型。
    - 容器 pointer-events: none，只有人物躯干那一小块热区可点。
    ------------------------------------------------------------------------ */
@@ -15,7 +15,7 @@
 
   var CFG = {
     vendor: '/live2d/vendor/',
-    model: '/live2d/models/feiyu/feiyu.model3.json',
+    model: '/live2d/models/dafeiyu/model.model3.json',
     api: '/api/chat',
     delay: 2600,
     turns: 8
@@ -26,6 +26,7 @@
     ready: false,
     open: false,
     busy: false,
+    speaking: false,
     interacted: false,
     history: []
   };
@@ -85,7 +86,10 @@
     root.className = 'l2d';
     root.id = 'l2d';
     root.innerHTML =
-      '<div class="l2d-canvas"></div>' +
+      '<div class="l2d-canvas">' +
+      '  <img class="l2d-preview" src="/live2d/models/dafeiyu/preview.webp" alt="" decoding="async">' +
+      '</div>' +
+      '<div class="l2d-bar" aria-hidden="true"><i></i></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
       '<div class="l2d-bubble" hidden>' +
       '  <p class="l2d-text"></p>' +
@@ -101,6 +105,7 @@
 
     el.root = root;
     el.canvas = root.querySelector('.l2d-canvas');
+    el.preview = root.querySelector('.l2d-preview');
     el.hit = root.querySelector('.l2d-hit');
     el.bubble = root.querySelector('.l2d-bubble');
     el.text = root.querySelector('.l2d-text');
@@ -183,6 +188,10 @@
 
     if (!el.root) buildDom();
 
+    /* 先让静态图出来顶着。9.4 MB 的 moc3 在慢网下要二十几秒，
+       空着右下角会让人以为坏了。 */
+    el.root.classList.add('is-on');
+
     loadScript(CFG.vendor + 'pixi.min.js')
       .then(function () { return loadScript(CFG.vendor + 'cubismcore5.min.js'); })
       .then(function () { return loadScript(CFG.vendor + 'cubism4.min.js'); })
@@ -190,7 +199,7 @@
       .then(function () {
         STATE.ready = true;
         STATE.booting = false;
-        el.root.classList.add('is-on');
+        el.root.classList.add('is-ready');
         document.body.classList.add('l2d-on');
         el.trigger.hidden = true;
         maybeGreet();
@@ -226,16 +235,31 @@
         app.stage.addChild(m);
         layout();
 
-        /* 这套模型把「带水印」和「无水印」做成两套部件，靠 Paramcol_3 切换。
-           Cubism 每帧都会把参数重置回默认值，所以得挂在 ticker 上一直按住。 */
-        try {
-          var core = m.internalModel.coreModel;
-          core.setParameterValueById('Paramcol_3', 1.0);
+        /* 两件事都挂在同一根 ticker 上：Cubism 每帧会把参数和部件不透明度
+           重置回默认值，设一次不保持，只能每帧按住。
+
+           1) 第 16 个部件是鼻梁上一小块黑色贴片。作者自己的宣传图里没有它，
+              应该是导出时没关掉的辅助件，这里按住不让它显示。
+           2) 说话时驱动 ParamMouthOpenY，让嘴动起来。不发声，只是给个节奏。 */
+        var core = null;
+        var mouthPhase = 0;
+        var wasSpeaking = false;
+        try { core = m.internalModel.coreModel; } catch (e) {}
+
+        if (core) {
           app.ticker.add(function () {
-            core.setParameterValueById('Paramcol_3', 1.0);
+            try { core.setPartOpacityByIndex(16, 0); } catch (e) {}
+
+            if (STATE.speaking) {
+              wasSpeaking = true;
+              mouthPhase += 0.34;
+              var v = Math.abs(Math.sin(mouthPhase)) * (0.45 + 0.35 * Math.abs(Math.sin(mouthPhase * 0.41)));
+              try { core.setParameterValueById('ParamMouthOpenY', v * 0.7); } catch (e) {}
+            } else if (wasSpeaking) {
+              wasSpeaking = false;
+              try { core.setParameterValueById('ParamMouthOpenY', 0); } catch (e) {}
+            }
           });
-        } catch (e) {
-          console.warn('[l2d] 水印开关失效', e);
         }
 
         try {
@@ -311,6 +335,7 @@
 
   function setBusy(b) {
     STATE.busy = b;
+    STATE.speaking = b;
     el.send.disabled = b;
   }
 

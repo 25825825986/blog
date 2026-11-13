@@ -1,0 +1,163 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "model.moc3",
+    "Textures": [
+      "texture_00.webp",
+      "texture_01.webp",
+      "texture_02.webp",
+      "texture_03.webp",
+      "texture_04.webp"
+    ],
+    "Physics": "physics.json",
+    "DisplayInfo": "cdi.json",
+    "Motions": {
+      "Idle": [
+        {
+          "File": "motions/idle.motion3.json",
+          "FadeInTime": 0.6,
+          "FadeOutTime": 0.6
+        }
+      ],
+      "Greet": [
+        {
+          "File": "motions/hand-up.motion3.json",
+          "FadeInTime": 0.2,
+          "FadeOutTime": 0.2
+        }
+      ],
+      "GreetBack": [
+        {
+          "File": "motions/hand-down.motion3.json",
+          "FadeInTime": 0.2,
+          "FadeOutTime": 0.2
+        }
+      ],
+      "Point": [
+        {
+          "File": "motions/point-up.motion3.json",
+          "FadeInTime": 0.2,
+          "FadeOutTime": 0.2
+        }
+      ],
+      "PointBack": [
+        {
+          "File": "motions/point-down.motion3.json",
+          "FadeInTime": 0.2,
+          "FadeOutTime": 0.2
+        }
+      ]
+    },
+    "Expressions": [
+      {
+        "Name": "体型1",
+        "File": "expressions/exp01.exp3.json"
+      },
+      {
+        "Name": "体型2",
+        "File": "expressions/exp02.exp3.json"
+      },
+      {
+        "Name": "兔牙",
+        "File": "expressions/exp03.exp3.json"
+      },
+      {
+        "Name": "前倾",
+        "File": "expressions/exp04.exp3.json"
+      },
+      {
+        "Name": "加载",
+        "File": "expressions/exp05.exp3.json"
+      },
+      {
+        "Name": "单片眼镜",
+        "File": "expressions/exp06.exp3.json"
+      },
+      {
+        "Name": "圈圈眼",
+        "File": "expressions/exp07.exp3.json"
+      },
+      {
+        "Name": "尾巴开关",
+        "File": "expressions/exp08.exp3.json"
+      },
+      {
+        "Name": "屑屑眼",
+        "File": "expressions/exp09.exp3.json"
+      },
+      {
+        "Name": "流冷汗",
+        "File": "expressions/exp10.exp3.json"
+      },
+      {
+        "Name": "流泪",
+        "File": "expressions/exp11.exp3.json"
+      },
+      {
+        "Name": "爱心眼",
+        "File": "expressions/exp12.exp3.json"
+      },
+      {
+        "Name": "竖食指关",
+        "File": "expressions/exp13.exp3.json"
+      },
+      {
+        "Name": "竖食指开",
+        "File": "expressions/exp14.exp3.json"
+      },
+      {
+        "Name": "胸口衣服",
+        "File": "expressions/exp15.exp3.json"
+      },
+      {
+        "Name": "脱鞋",
+        "File": "expressions/exp16.exp3.json"
+      },
+      {
+        "Name": "脸红",
+        "File": "expressions/exp17.exp3.json"
+      },
+      {
+        "Name": "裙子切换",
+        "File": "expressions/exp18.exp3.json"
+      },
+      {
+        "Name": "钢盆",
+        "File": "expressions/exp19.exp3.json"
+      },
+      {
+        "Name": "黑框眼镜",
+        "File": "expressions/exp20.exp3.json"
+      },
+      {
+        "Name": "黑脸",
+        "File": "expressions/exp21.exp3.json"
+      },
+      {
+        "Name": "默认体型",
+        "File": "expressions/exp22.exp3.json"
+      },
+      {
+        "Name": "＞＜",
+        "File": "expressions/exp23.exp3.json"
+      }
+    ]
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeROpen",
+        "ParamEyeLOpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

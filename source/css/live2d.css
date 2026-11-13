@@ -44,6 +44,62 @@
   display: block;
   width: 100%;
   height: 100%;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.l2d.is-ready .l2d-canvas canvas {
+  opacity: 1;
+}
+
+/* 模型到位前先摆一张静态图。moc3 有 15.7 MB，慢网下要下二十几秒，
+   右下角不能空着。这张图是拿同一个模型、同一套排版渲染出来的，切换时不会跳。 */
+.l2d-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  transition: opacity 0.5s ease;
+}
+
+.l2d.is-ready .l2d-preview {
+  opacity: 0;
+}
+
+/* 加载条：拿不到真实进度，就让它来回走，表示“在动” */
+.l2d-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: 72px;
+  height: 3px;
+  margin-left: -36px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(24, 34, 54, 0.14), 0 1px 4px rgba(24, 34, 54, 0.18);
+  overflow: hidden;
+}
+
+.l2d-bar i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: #4f83d8;
+  animation: l2d-bar-run 1.15s ease-in-out infinite;
+}
+
+@keyframes l2d-bar-run {
+  0%   { transform: translateX(-105%); }
+  100% { transform: translateX(268%); }
+}
+
+.l2d.is-ready .l2d-bar {
+  display: none;
 }
 
 /* 点击热区：只盖住人物躯干，不是整块画布。
