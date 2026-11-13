@@ -34,6 +34,11 @@
   opacity: 1;
 }
 
+/* 走动时每帧改 transform，提前提成合成层，免得跟画面抢主线程 */
+.l2d.is-walking {
+  will-change: transform;
+}
+
 /* 模型画布 */
 .l2d-canvas {
   position: absolute;
@@ -149,7 +154,12 @@
    不能把 filter 加在整个气泡上——那会把文字一起光栅化，13px 的
    字会发虚。 */
 .l2d-bubble {
-  position: fixed;
+  /* 相对 .l2d 定位，而不是相对视口。
+     走动时 .l2d 带 transform，带 transform 的祖先会成为 fixed 子元素的
+     包含块——用 fixed 的话气泡会突然跳到另一个坐标系里去。
+     absolute 反而正好：容器走，气泡跟着走，一步不用额外算。 */
+  position: absolute;
+  z-index: 2;
   /* 人物铺满整个画布高度、底边贴底，所以画布顶部距屏幕底正好是 --l2d-h。
      再往上抬 10px，让尾巴尖刚好搭在头顶，不压住头发。 */
   right: calc(var(--l2d-w) * 0.5);

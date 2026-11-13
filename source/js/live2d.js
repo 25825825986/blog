@@ -283,11 +283,105 @@
   function scheduleIdle() {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(function () {
-      if (STATE.ready && !STATE.busy && !anim && Date.now() - lastReact > 6000) {
+      if (STATE.ready && !STATE.busy && !anim && !walk.active && Date.now() - lastReact > 6000) {
         react(pick(QUIET));
       }
       scheduleIdle();
     }, 14000 + Math.random() * 14000);
+  }
+
+  /* ── 走动 ─────────────────────────────────────────────────────────────
+     这套模型没有腿部骨骼，只有 ParamBodyAngle* 和 Param_arm_*，而且两者
+     都是物理输出——写进去也会被物理盖掉。所以迈不了腿，只能整体平移。
+
+     让它不像「滑行」靠三件事：
+     1) 平移时叠一个上下小幅起伏，频率按小碎步的节奏，两端收小；
+     2) 头朝行进方向偏，眼睛先看过去；
+     3) 起步和收尾缓、中间快。
+
+     她原本贴在右边缘（right: 0），往右会走出屏幕，所以只能往左走。
+     范围就是「从边上踱出来一点，再退回去」。
+
+     只在气泡关着、没人理的时候走。手机上不走：屏幕窄，走两步就
+     挡正文了。 */
+  var WALK = {
+    range: 110,      // 能往左踱多远
+    minDur: 1600,
+    maxDur: 2600,
+    minGap: 24000,   // 两次踱步之间至少隔多久
+    maxGap: 46000
+  }
+
+  var walk = { x: 0, active: false, from: 0, to: 0, t0: 0, dur: 0, dir: 0 }
+  var walkTimer = 0
+  var lastScroll = 0
+
+  /* 人在滚页面的时候别乱动，会分神 */
+  document.addEventListener('scroll', function () { lastScroll = Date.now() }, { passive: true })
+
+  function applyShift (x, bob) {
+    /* 只动容器。气泡是它的子节点，会跟着一起走——
+       前提是气泡用 absolute 定位，用 fixed 的话会被 transform
+       抢成包含块，位置就飘了。 */
+    el.root.style.transform = 'translate3d(' + x + 'px,' + bob + 'px,0)'
+  }
+
+  function stopWalk () {
+    if (!walk.active) return
+    walk.active = false
+    applyShift(walk.x.toFixed(1), '0')
+    el.root.classList.remove('is-walking')
+  }
+
+  function walkTo (target) {
+    walk.from = walk.x
+    walk.to = target
+    walk.t0 = performance.now()
+    walk.dur = WALK.minDur + Math.random() * (WALK.maxDur - WALK.minDur)
+    walk.dir = target > walk.from ? 1 : -1
+    walk.active = true
+    el.root.classList.add('is-walking')
+  }
+
+  function stepWalk (now) {
+    if (!walk.active) return
+
+    var u = (now - walk.t0) / walk.dur
+    if (u >= 1) {
+      walk.x = walk.to
+      walk.active = false
+      applyShift(walk.x.toFixed(1), '0')
+      el.root.classList.remove('is-walking')
+      return
+    }
+
+    /* easeInOutQuad：起步缓、中间快、收尾缓 */
+    var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2
+    walk.x = walk.from + (walk.to - walk.from) * e
+
+    /* 起伏按步频走，两端乘以 sin 包络，不然起步那一下会突兀地跳 */
+    var bob = Math.sin(u * Math.PI * 9) * 3.4 * Math.sin(Math.PI * u)
+    applyShift(walk.x.toFixed(1), bob.toFixed(1))
+  }
+
+  function scheduleWalk () {
+    clearTimeout(walkTimer)
+    walkTimer = setTimeout(function () {
+      var canWalk =
+        STATE.ready && !STATE.open && !STATE.busy && !anim && !walk.active &&
+        !document.hidden && window.innerWidth > 768 &&
+        Date.now() - lastReact > 8000 && Date.now() - lastScroll > 3000
+
+      if (canWalk) {
+        var to = -Math.random() * WALK.range
+        /* 别在原地挪一点点，看着像抽动 */
+        if (Math.abs(to - walk.x) < 42) {
+          to = walk.x < -WALK.range * 0.5 ? 0 : -WALK.range
+        }
+        walkTo(to)
+      }
+      scheduleWalk()
+    }, WALK.minGap + Math.random() * (WALK.maxGap - WALK.minGap))
   }
 
   function loadScript(src) {
@@ -399,6 +493,7 @@
   }
 
   function openBubble() {
+    stopWalk();
     STATE.open = true;
     el.bubble.hidden = false;
     requestAnimationFrame(function () {
@@ -444,6 +539,8 @@
 
   function onHoverIn() {
     clearTimeout(hoverTimer);
+    /* 有人凑过来就站住，不然「朝行进方向看」和「抬眼看你」会打架 */
+    stopWalk();
     hoverOn = true;
   }
 
@@ -490,6 +587,7 @@
         el.trigger.hidden = true;
         maybeGreet();
         scheduleIdle();
+        scheduleWalk();
       })
       .catch(function (err) {
         STATE.booting = false;
@@ -556,6 +654,8 @@
             lastTick = now;
             var ease = 1 - Math.exp(-dt / 70);
 
+            stepWalk(now);
+
             var target = null;
             if (anim) {
               var u = (now - anim.t0) / anim.dur;
@@ -574,6 +674,15 @@
               target.ParamBrowLY = (target.ParamBrowLY || 0) + 0.34 * hover;
               target.ParamBrowRY = (target.ParamBrowRY || 0) + 0.34 * hover;
               target.ParamMouthForm = (target.ParamMouthForm || 0) + 0.1 * hover;
+            }
+
+            /* 走动时头朝行进方向偏，眼睛先看过去。停下后 active 变 false，
+               叠加量会自己衰减回 0。 */
+            if (walk.active) {
+              if (!target) target = {};
+              target.ParamAngleX = (target.ParamAngleX || 0) + walk.dir * 12;
+              target.ParamEyeBallX = (target.ParamEyeBallX || 0) + walk.dir * 0.5;
+              target.ParamAngleZ = (target.ParamAngleZ || 0) - walk.dir * 3;
             }
 
             var k;
