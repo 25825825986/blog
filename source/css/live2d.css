@@ -138,32 +138,116 @@
 }
 
 /* 气泡：fixed 定位，跟容器尺寸解耦，这样换视口大小不用重算 */
+/* 对话框：一朵小云，停在头顶正上方。
+
+   形状不是一个圆角矩形，是「主体 + 两个鼓包 + 一串递减的小圆尾巴」
+   拼出来的。拼接处的投影不能用 box-shadow——每个形状各投一份，
+   接缝上会叠出脏边；必须用 filter: drop-shadow，它按合并后的轮廓
+   算阴影，看上去才是一整朵云。
+
+   结构上分两层：.l2d-cloud 只管形状和投影，.l2d-inner 放内容。
+   不能把 filter 加在整个气泡上——那会把文字一起光栅化，13px 的
+   字会发虚。 */
 .l2d-bubble {
   position: fixed;
-  right: calc(var(--l2d-w) + 10px);
-  bottom: calc(var(--l2d-h) * 0.46);
-  width: 252px;
+  /* 人物铺满整个画布高度、底边贴底，所以画布顶部距屏幕底正好是 --l2d-h。
+     再往上抬 10px，让尾巴尖刚好搭在头顶，不压住头发。 */
+  right: calc(var(--l2d-w) * 0.5);
+  bottom: calc(var(--l2d-h) + 10px);
+  width: 240px;
   max-width: calc(100vw - 40px);
-  padding: 12px 14px 10px;
-  border-radius: 14px 14px 14px 4px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 32px rgba(30, 44, 66, 0.16), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   pointer-events: auto;
+
+  /* 从尾巴那一点长出来，像从头顶冒出来的 */
+  transform-origin: calc(100% - 20px) 100%;
   opacity: 0;
-  transform: translateY(8px) scale(0.97);
-  transform-origin: 100% 100%;
-  transition: opacity 0.24s ease, transform 0.24s ease;
+  transform: translate(4px, 16px) scale(0.42);
+  transition: opacity 0.14s ease, transform 0.18s ease;
 }
 
 .l2d-bubble.is-open {
   opacity: 1;
   transform: none;
+  /* 回弹：冲过头一点再落定，才有「冒」的感觉 */
+  transition: opacity 0.2s ease, transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .l2d-bubble[hidden] {
   display: none;
+}
+
+/* 云层：形状、颜色、投影都在这一层 */
+.l2d-cloud {
+  --cloud-bg: #ffffff;
+
+  position: absolute;
+  inset: 0;
+  border-radius: 34px;
+  background: var(--cloud-bg);
+  filter: drop-shadow(0 8px 20px rgba(28, 42, 64, 0.13))
+          drop-shadow(0 1px 3px rgba(28, 42, 64, 0.07));
+}
+
+/* 顶部三个鼓包，左中右错落。
+   只放两个时中间会留一大段平顶，看着像盒子贴了两个球；
+   三个才能把顶边盖成起伏的轮廓。 */
+.l2d-cloud i,
+.l2d-cloud::before,
+.l2d-cloud::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: var(--cloud-bg);
+}
+
+.l2d-cloud i {
+  left: 2px;
+  top: -9px;
+  width: 52px;
+  height: 52px;
+}
+
+.l2d-cloud::before {
+  left: 68px;
+  top: -21px;
+  width: 68px;
+  height: 68px;
+}
+
+.l2d-cloud::after {
+  right: 2px;
+  top: -21px;
+  width: 74px;
+  height: 74px;
+}
+
+/* 尾巴：两个递减的小圆从右下角往下飘，指向头顶。
+   用圆而不是尖角，因为尖角像漫画对白，圆才像「冒出来的云」。 */
+.l2d-tail {
+  position: absolute;
+  right: 12px;
+  bottom: -12px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--cloud-bg);
+}
+
+.l2d-tail::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: -14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--cloud-bg);
+}
+
+/* 内容层：不参与滤镜，文字按正常方式渲染 */
+.l2d-inner {
+  position: relative;
+  padding: 13px 16px 11px;
 }
 
 .l2d-text {
@@ -203,44 +287,46 @@
 .l2d-form {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(30, 44, 66, 0.09);
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(30, 44, 66, 0.08);
 }
 
+/* 输入框做成胶囊、去边框。方框子在圆润的云朵里太硬，
+   一块淡底就够，眼睛不会先看到它。 */
 .l2d-input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid rgba(30, 44, 66, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(30, 44, 66, 0.055);
+  font-size: 12.5px;
   line-height: 1.4;
   color: #22303f;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .l2d-input::placeholder {
-  color: #9aa6b6;
+  color: #98a4b4;
 }
 
 .l2d-input:focus {
-  border-color: var(--btn-bg, #49b1f5);
-  box-shadow: 0 0 0 3px rgba(73, 177, 245, 0.14);
+  background: rgba(30, 44, 66, 0.08);
+  box-shadow: 0 0 0 2px rgba(73, 177, 245, 0.22);
 }
 
 .l2d-send {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 27px;
+  height: 27px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 50%;
   background: var(--btn-bg, #49b1f5);
   color: #fff;
   font-size: 15px;
@@ -286,10 +372,11 @@
 
 /* ── 深色 ─────────────────────────────────────────────────────────────── */
 
-html[data-theme="dark"] .l2d-bubble,
-.dark .l2d-bubble {
-  background: rgba(38, 46, 60, 0.96);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+html[data-theme="dark"] .l2d-cloud,
+.dark .l2d-cloud {
+  --cloud-bg: #3a4557;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 0 1px rgba(255, 255, 255, 0.06));
 }
 
 html[data-theme="dark"] .l2d-text,
@@ -304,9 +391,13 @@ html[data-theme="dark"] .l2d-form,
 
 html[data-theme="dark"] .l2d-input,
 .dark .l2d-input {
-  background: rgba(22, 28, 38, 0.9);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
   color: #e6ebf5;
+}
+
+html[data-theme="dark"] .l2d-input:focus,
+.dark .l2d-input:focus {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 html[data-theme="dark"] .l2d-input::placeholder,
@@ -349,12 +440,49 @@ body.l2d-on #rightside {
     border-radius: 38px 38px 26px 26px;
   }
 
-  /* 手机上没地方把气泡放旁边，改放到模型上方 */
+  /* 手机上没地方把云朵放旁边，改放到头顶正上方，尾巴仍朝下 */
   .l2d-bubble {
-    right: 16px;
-    bottom: calc(var(--l2d-h) + 12px);
-    width: calc(100vw - 32px);
+    right: 14px;
+    bottom: calc(var(--l2d-h) + 8px);
+    width: calc(100vw - 28px);
     max-width: 320px;
+    transform-origin: calc(100% - 70px) 100%;
+  }
+
+  .l2d-cloud {
+    border-radius: 22px;
+  }
+
+  .l2d-inner {
+    padding: 13px 15px 11px;
+  }
+
+  .l2d-cloud::before {
+    left: 24px;
+    top: -12px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .l2d-cloud::after {
+    right: 26px;
+    top: -18px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .l2d-tail {
+    right: 70px;
+    bottom: -14px;
+    width: 17px;
+    height: 17px;
+  }
+
+  .l2d-tail::after {
+    right: 2px;
+    bottom: -12px;
+    width: 9px;
+    height: 9px;
   }
 
   .l2d-text {

@@ -334,12 +334,15 @@
       '<div class="l2d-head" role="button" aria-label="摸摸头"></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
       '<div class="l2d-bubble" hidden>' +
-      '  <p class="l2d-text"></p>' +
-      '  <form class="l2d-form">' +
-      '    <input class="l2d-input" type="text" maxlength="120" autocomplete="off" ' +
-      '           enterkeyhint="send" placeholder="跟她说点什么…" aria-label="对看板娘说的话">' +
-      '    <button class="l2d-send" type="submit" aria-label="发送">→</button>' +
-      '  </form>' +
+      '  <div class="l2d-cloud" aria-hidden="true"><i></i><span class="l2d-tail"></span></div>' +
+      '  <div class="l2d-inner">' +
+      '    <p class="l2d-text"></p>' +
+      '    <form class="l2d-form">' +
+      '      <input class="l2d-input" type="text" maxlength="120" autocomplete="off" ' +
+      '             enterkeyhint="send" placeholder="跟她说点什么…" aria-label="对看板娘说的话">' +
+      '      <button class="l2d-send" type="submit" aria-label="发送">→</button>' +
+      '    </form>' +
+      '  </div>' +
       '</div>' +
       '<button class="l2d-trigger" type="button" hidden aria-label="叫看板娘出来">风</button>';
 
