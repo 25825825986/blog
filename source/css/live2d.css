@@ -28,18 +28,10 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.7s ease;
-  /* 踱步时整个容器绕脚底转半度。原点必须落在脚底中心，
-     落到容器中心的话她会像一根摇晃的标牌。 */
-  transform-origin: 50% 100%;
 }
 
 .l2d.is-on {
   opacity: 1;
-}
-
-/* 走动时每帧改 transform，提前提成合成层，免得跟画面抢主线程 */
-.l2d.is-walking {
-  will-change: transform;
 }
 
 /* 模型画布 */
