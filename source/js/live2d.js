@@ -45,6 +45,7 @@
   var model = null;
   var raf = 0;
   var anim = null;
+  var lastReact = 0;
 
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -149,16 +150,108 @@
         ParamMouthOpenY: 0.22 * b,
         ParamMouthForm: 0.55 * b
       };
+    } },
+
+    /* 瞽一眼：眼球先过去，头慢半拍跟上，眼睛先收回来 */
+    glance: { dur: 2.2, fn: function (u) {
+      var eye = smooth(u, 0.02, 0.16) * (1 - smooth(u, 0.70, 0.86));
+      var head = smooth(u, 0.16, 0.44) * (1 - smooth(u, 0.74, 0.96));
+      return {
+        ParamEyeBallX: -0.72 * eye,
+        ParamEyeBallY: 0.2 * eye,
+        ParamAngleX: -12 * head,
+        ParamAngleY: -3 * head,
+        ParamAngleZ: 3 * head
+      };
+    } },
+
+    /* 叹气：低头、眼睛半闭、嘴角往下、眉毛内侧压 */
+    sigh: { dur: 3.0, fn: function (u) {
+      var h = hold(u, 0.20, 0.70);
+      return {
+        ParamAngleY: 11 * h,
+        ParamAngleZ: -3.5 * h,
+        ParamEyeLOpen: 1 - h,
+        ParamEyeROpen: 1 - h,
+        ParamMouthForm: -0.55 * h,
+        ParamBrowLAngle: 0.3 * h,
+        ParamBrowRAngle: 0.3 * h,
+        ParamBrowLY: -0.2 * h,
+        ParamBrowRY: -0.2 * h
+      };
+    } },
+
+    /* 鼓嘴：把头别开、嘴角往下拉、眼睛耷下来 */
+    pout: { dur: 2.6, fn: function (u) {
+      var h = hold(u, 0.14, 0.80);
+      return {
+        ParamAngleX: 14 * h,
+        ParamAngleY: 3 * h,
+        ParamAngleZ: 6 * h,
+        ParamMouthForm: -0.8 * h,
+        ParamMouthX: 0.35 * h,
+        ParamBrowLY: -0.35 * h,
+        ParamBrowRY: -0.35 * h
+      };
+    } },
+
+    /* 吓一跳：猛地抬头、挑眉、张嘴，然后带一点抖地回落 */
+    startle: { dur: 0.9, fn: function (u) {
+      var env = u < 0.14 ? u / 0.14 : Math.pow(1 - (u - 0.14) / 0.86, 2);
+      return {
+        ParamAngleY: -18 * env,
+        ParamAngleZ: 4.5 * Math.sin(7 * Math.PI * u) * env,
+        ParamMouthOpenY: 0.45 * env,
+        ParamBrowLY: 1 * env,
+        ParamBrowRY: 1 * env,
+        ParamEyeLOpen: 1,
+        ParamEyeROpen: 1
+      };
+    } },
+
+    /* 害羞：低头别开脸、脸红、眼神往下躲 */
+    shy: { dur: 3.0, fn: function (u) {
+      var h = hold(u, 0.18, 0.78);
+      return {
+        ParamAngleY: 8 * h,
+        ParamAngleX: -11 * h,
+        ParamAngleZ: 7 * h,
+        ParamEyeBallX: -0.5 * h,
+        ParamEyeBallY: -0.3 * h,
+        PARAM_EXP4: h,
+        ParamMouthForm: 0.35 * h,
+        ParamBrowLY: 0.2 * h,
+        ParamBrowRY: 0.2 * h
+      };
+    } },
+
+    /* 打哈欠：仰头、闭眼、张大嘴 */
+    yawn: { dur: 3.4, fn: function (u) {
+      var open = smooth(u, 0.10, 0.30) * (1 - smooth(u, 0.72, 0.86));
+      var shut = smooth(u, 0.14, 0.34) * (1 - smooth(u, 0.74, 0.88));
+      return {
+        ParamAngleY: -13 * open,
+        ParamAngleZ: 3 * open,
+        ParamEyeLOpen: 1 - shut,
+        ParamEyeROpen: 1 - shut,
+        ParamMouthOpenY: 0.8 * open,
+        ParamBrowLY: 0.45 * open,
+        ParamBrowRY: 0.45 * open
+      };
     } }
   };
 
-  /* 点她的时候随机挑一个。nod / tilt 权重高一点，太爱演反而吵。 */
-  var REACTIONS = ['nod', 'nod', 'tilt', 'tilt', 'shake', 'surprise', 'happy', 'sleepy'];
+  /* 点她的时候随机挑一个。nod / tilt / glance 权重高一点，太爱演反而吵。 */
+  var REACTIONS = [
+    'nod', 'nod', 'nod', 'tilt', 'tilt', 'glance', 'glance',
+    'shake', 'sigh', 'pout', 'surprise', 'startle', 'shy', 'yawn', 'happy', 'sleepy'
+  ];
   var lastReaction = '';
 
   function react(name) {
     var a = ANIMS[name];
     if (!a) return;
+    lastReact = Date.now();
     anim = { t0: performance.now(), dur: a.dur * 1000, fn: a.fn };
   }
 
@@ -167,6 +260,21 @@
     if (n === lastReaction) n = pick(REACTIONS);
     lastReaction = n;
     react(n);
+  }
+
+  /* 没人理她的时候，隔十几二十秒自己动一下，像 Hiyori 那几段循环待机。
+     不常驻：常驻会一直压着光标跟随，鼠标一动她就僵在那里。 */
+  var QUIET = ['glance', 'glance', 'sigh', 'tilt', 'yawn', 'pout'];
+  var idleTimer = 0;
+
+  function scheduleIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      if (STATE.ready && !STATE.busy && !anim && Date.now() - lastReact > 6000) {
+        react(pick(QUIET));
+      }
+      scheduleIdle();
+    }, 14000 + Math.random() * 14000);
   }
 
   function loadScript(src) {
@@ -325,6 +433,7 @@
         document.body.classList.add('l2d-on');
         el.trigger.hidden = true;
         maybeGreet();
+        scheduleIdle();
       })
       .catch(function (err) {
         STATE.booting = false;
