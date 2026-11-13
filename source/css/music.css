@@ -1019,13 +1019,49 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   letter-spacing: 0.32em;
   color: #1f2d3d;
   opacity: 0;
-  transition: opacity 0.42s ease;
+  /* 进场从中间向两侧展开，出场向两侧散开，都走这一条曲线。
+     竖排的两列像两扇门，换句时才不突兀。 */
+  transform: translateX(14px);
+  transition: opacity 0.3s ease, transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
   max-height: 64vh;
   overflow: hidden;
 }
 
+/* 右列（当前句）从左边靠过来，和左列对称 */
+.mp-lyric__col:nth-child(2) {
+  transform: translateX(-14px);
+}
+
 .mp-lyric.is-in .mp-lyric__col {
-  opacity: 0.9;
+  opacity: 0.92;
+  transform: none;
+}
+
+/* 换句：两列分别往左右滑出去。写在 is-in 后面，同时存在时以这条为准。 */
+.mp-lyric.is-out .mp-lyric__col:nth-child(1) {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+.mp-lyric.is-out .mp-lyric__col:nth-child(2) {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+/* 逐字高亮：没唱到的压暗，唱到的提亮。
+   接口没有逐字时间（klyric 一直是空），是按字数把整行时长均分的。 */
+.mp-lyric__col .ch {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.mp-lyric__col .ch.is-on {
+  opacity: 1;
+}
+
+/* 前奏预告整列已经是淡的，字就别再压一道，不然叠到 0.13 看不清 */
+.mp-lyric.is-pending .mp-lyric__col .ch {
+  opacity: 1;
 }
 
 /* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词。
@@ -1073,6 +1109,7 @@ html[data-theme="dark"] .mp-lyric__trans,
 
 @media (prefers-reduced-motion: reduce) {
   .mp-lyric__col,
+  .mp-lyric__col .ch,
   .mp-lyric__trans {
     transition: none;
   }

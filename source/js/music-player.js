@@ -452,6 +452,8 @@
   function initAudio() {
     audio = new Audio();
     audio.preload = 'none';
+    /* 调试钩子：控制台里能直接 seek、看当前时间和歌词状态 */
+    window.__mp = { audio: audio };
 
     audio.addEventListener('play', function () {
       failCount = 0;
@@ -472,6 +474,7 @@
     audio.addEventListener('timeupdate', function () {
       updateProgress();
       syncLyric(audio.currentTime || 0);
+      paintProgress(audio.currentTime || 0);
       saveState(false);
     });
 
@@ -718,14 +721,14 @@
     if (!id) {
       lyric = { key: '', lines: [], trans: [], meta: {}, pure: true, ready: true };
       lyricIdx = -2;
-      paintLyric('', '', true);
+      paintLyric('', '', '', true);
       return;
     }
     if (lyric.key === id) return;
 
     lyric = { key: id, lines: [], trans: [], meta: {}, pure: false, ready: false };
     lyricIdx = -2;
-    paintLyric('', '', true);
+    paintLyric('', '', '', true);
 
     fetchLyric(0, id).then(function (d) {
       if (lyric.key !== id) return;   /* 已经切歌，这批数据丢掉 */
@@ -749,8 +752,16 @@
   function renderIdle() {
     if (!lyricEl) return;
     if (!lyric.pure && lyric.lines.length) {
-      var line = lyric.lines[lyricIdx >= 0 ? lyricIdx : 0];
-      paintLyric(line.text, transAt(line.t), true);
+      var idx = lyricIdx >= 0 ? lyricIdx : 0;
+      var line = lyric.lines[idx];
+      var next = lyric.lines[idx + 1];
+      var est = Math.max(1.6, line.text.length * 0.32);
+      /* pjax 回来时把进度区间一起还原，否则高亮要等到下一句才接上 */
+      paintLyric('', line.text, transAt(line.t), true,
+                 lyricIdx >= 0 ? line.t : 0,
+                 lyricIdx >= 0
+                   ? (next ? Math.min(next.t, line.t + est * 1.5) : line.t + est)
+                   : 0);
       /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
       lyricEl.classList.toggle('is-pending', lyricIdx < 0);
       return;
@@ -761,7 +772,7 @@
     if (lyric.meta['编曲'] && lyric.meta['编曲'] !== lyric.meta['作曲']) {
       sub.push('编曲 ' + lyric.meta['编曲']);
     }
-    paintLyric('纯音乐', sub.join(' · '), true);
+    paintLyric('', '纯音乐', sub.join(' · '), true, 0, 0);
   }
 
   /* 按时间二分找当前句，比逐行遍历稳 */
@@ -778,7 +789,7 @@
          否则前奏长的歌会让这块空二十几秒，看着像没加载出来 */
       if (lyricIdx !== -1) {
         lyricIdx = -1;
-        paintLyric(lyric.lines[0].text, '', true);
+        paintLyric('', lyric.lines[0].text, '', true, 0, 0);
         if (lyricEl) lyricEl.classList.add('is-pending');
       }
       return;
@@ -787,7 +798,15 @@
     if (lyricEl) lyricEl.classList.remove('is-pending');
     lyricIdx = idx;
     var line = lyric.lines[idx];
-    paintLyric(line.text, transAt(line.t));
+    var prev = idx > 0 ? lyric.lines[idx - 1] : null;
+    var next = lyric.lines[idx + 1];
+
+    /* 这一句唱多久。下一句来得太晚（间奏）就按字数估一个，
+       不然高亮会爬得比唱还慢。 */
+    var est = Math.max(1.6, line.text.length * 0.32);
+    var t1 = next ? Math.min(next.t, line.t + est * 1.5) : line.t + est;
+
+    paintLyric(prev ? prev.text : '', line.text, transAt(line.t), false, line.t, t1);
   }
 
   function transAt(t) {
@@ -803,34 +822,54 @@
     return (d > -0.8 && d < 0.8) ? lyric.trans[idx].text : '';
   }
 
-  /* 一句拆两列。短句不拆，长句对半；优先落在空格或标点上，
-     别把词劈成两半（「安静」拆成「安」「静」看着很怪）。 */
-  function splitCols(text) {
-    var t = String(text || '').replace(/\s+/g, ' ').trim();
-    var n = t.length;
-    if (n <= 7) return [t, ''];
+  /* 换句：两列分别向左右滑出去，换字，再从中间展开回来。
+     间隔太短的快歌直接换，否则两段动画会叠在一起看不清。
 
-    var mid = Math.ceil(n / 2);
-
-    /* 英文：往后找最近的空格，宁可两列长短不齐也别拆单词 */
-    var sp = t.indexOf(' ', mid - 1);
-    if (sp > 0 && sp < n - 1) {
-      return [t.slice(0, sp), t.slice(sp + 1)];
+     两列是「上一句 / 这一句」，不是把一句从中间劈开——
+     劈开的话读到一半要横跳，气就断了。 */
+  function setCol(el, text) {
+    el.textContent = '';
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      var s = document.createElement('span');
+      s.className = 'ch';
+      /* 空格也要占一格，不然英文句子的字距会乱 */
+      s.textContent = ch === ' ' ? ' ' : ch;
+      el.appendChild(s);
     }
-
-    /* 中文：标点跟着上一列走 */
-    var punct = '，。、；：！？…—,.;:!?~';
-    for (var i = 0; i < 3; i++) {
-      if (mid + i < n && punct.indexOf(t.charAt(mid + i)) >= 0) { mid = mid + i + 1; break; }
-      if (mid - i - 1 > 0 && punct.indexOf(t.charAt(mid - i - 1)) >= 0) { mid = mid - i; break; }
-    }
-    if (mid <= 0 || mid >= n) mid = Math.ceil(n / 2);
-    return [t.slice(0, mid), t.slice(mid)];
   }
 
-  /* 换一句：先淡出，210ms 后换字再淡入。
-     间隔太短的快歌直接换，否则两句挤在一起反而看不清。 */
-  function paintLyric(text, trans, instant) {
+  /* 逐字高亮。
+
+     接口只给整行时间（返回里有 klyric 字段，但实测一直是空的），
+     所以按字数把这一行的时间均分。不是逐字对齐，但眼睛是跟得上的。
+
+     真要逐字，得另找一个返回增强型 LRC（[mm:ss.xx]<mm:ss.xx>字）的源，
+     那个格式里每个字自带时间。 */
+  var lyricProg = { t0: 0, t1: 0, n: 0, on: -1, col: null };
+
+  function paintProgress(t) {
+    var p = lyricProg;
+    if (!p.col || !p.n) return;
+    var span = p.t1 - p.t0;
+    /* 没有有效区间（前奏预告、纯音乐）就不动，保持全暗 */
+    if (span <= 0.3) return;
+
+    var k = (t - p.t0) / span;
+    if (k < 0) k = 0;
+    if (k > 1) k = 1;
+    var n = Math.round(k * p.n);
+    if (n === p.on) return;
+    p.on = n;
+
+    var kids = p.col.children;
+    for (var i = 0; i < kids.length; i++) {
+      if (i < n) kids[i].classList.add('is-on');
+      else kids[i].classList.remove('is-on');
+    }
+  }
+
+  function paintLyric(prev, cur, trans, instant, t0, t1) {
     if (!lyricEl || !lyricColEls.length || !lyricTransEl) return;
     var now = Date.now();
     if (!instant && now - lyricPaintedAt < 1100) instant = true;
@@ -842,18 +881,42 @@
 
     function apply() {
       if (gen !== lyricGen) return;
-      var cols = splitCols(text);
-      lyricColEls[0].textContent = cols[0];
-      lyricColEls[1].textContent = cols[1];
+
+      setCol(lyricColEls[0], prev || '');
+      setCol(lyricColEls[1], cur || '');
       lyricTransEl.textContent = trans || '';
       lyricTransEl.hidden = !trans;
+
+      /* 进度只跟这一句走。字数去空格算，不然英文句子的高亮会慢半拍 */
+      lyricProg.col = lyricColEls[1];
+      lyricProg.n = String(cur || '').replace(/\s/g, '').length;
+      lyricProg.t0 = t0 || 0;
+      lyricProg.t1 = t1 || 0;
+      lyricProg.on = -1;
+
       /* 强制回流，否则同一个 class 连着加两次不会有过渡 */
       void lyricEl.offsetWidth;
       lyricEl.classList.add('is-in');
+
+      /* 纯音乐、署名、前奏预告这些没有时间区间，不是“唱到哪”，
+         整列点亮就行——浓淡交给列级的 opacity 去分。 */
+      if (!t1) {
+        var ks = lyricColEls[1].children;
+        for (var i = 0; i < ks.length; i++) ks[i].classList.add('is-on');
+      }
+
+      paintProgress(audio ? audio.currentTime || 0 : 0);
     }
 
     if (instant) { apply(); return; }
-    lyricTimer = setTimeout(apply, 210);
+
+    /* 先向两侧散开，停一拍再换字、从中间展开 */
+    lyricEl.classList.add('is-out');
+    lyricTimer = setTimeout(function () {
+      if (gen !== lyricGen) return;
+      lyricEl.classList.remove('is-out');
+      apply();
+    }, 210);
   }
 
   function renderMusicPage() {
