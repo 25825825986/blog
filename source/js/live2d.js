@@ -334,7 +334,7 @@
       '<div class="l2d-head" role="button" aria-label="摸摸头"></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
       '<div class="l2d-bubble" hidden>' +
-      '  <div class="l2d-cloud" aria-hidden="true"><i></i><span class="l2d-tail"></span></div>' +
+      '  <div class="l2d-cloud" aria-hidden="true"><i></i><i></i><span class="l2d-tail"></span></div>' +
       '  <div class="l2d-inner">' +
       '    <p class="l2d-text"></p>' +
       '    <form class="l2d-form">' +

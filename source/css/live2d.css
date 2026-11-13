@@ -188,37 +188,51 @@
           drop-shadow(0 1px 3px rgba(28, 42, 64, 0.07));
 }
 
-/* 顶部三个鼓包，左中右错落。
-   只放两个时中间会留一大段平顶，看着像盒子贴了两个球；
-   三个才能把顶边盖成起伏的轮廓。 */
+/* 顶部四个鼓包，首尾相压。
+
+   只放三个时，鼓包之间的顶边会露出一段直线——那就是「平顶」。
+   圆的宽度得够到相邻那个的起点，顶边才完全由弧线组成。
+
+   位置和大小都用百分比，lift 也用百分比：鼓包是正方形
+   （aspect-ratio: 1），translateY 的百分比就是相对自身高度，
+   于是宽屏窄屏下形状一致，不会因为气泡变宽而变扁。 */
 .l2d-cloud i,
 .l2d-cloud::before,
 .l2d-cloud::after {
   content: '';
   position: absolute;
+  top: 0;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: var(--cloud-bg);
+  transform: translateY(var(--lift, -20%));
 }
 
-.l2d-cloud i {
-  left: 2px;
-  top: -9px;
-  width: 52px;
-  height: 52px;
+/* 四个鼓包的位置是按「弦宽」排的：一个圆在顶边上的可见宽度是
+   2w·√(k−k²)（w 是直径，k 是露出高度占直径的比例）。
+   相邻两个的弦要相压，顶边才没有直线段。 */
+.l2d-cloud i:nth-of-type(1) {
+  left: -2%;
+  width: 31%;
+  --lift: -16%;
+}
+
+.l2d-cloud i:nth-of-type(2) {
+  left: 19%;
+  width: 34%;
+  --lift: -23%;
 }
 
 .l2d-cloud::before {
-  left: 68px;
-  top: -21px;
-  width: 68px;
-  height: 68px;
+  left: 42%;
+  width: 35%;
+  --lift: -26%;
 }
 
 .l2d-cloud::after {
-  right: 2px;
-  top: -21px;
-  width: 74px;
-  height: 74px;
+  left: 66%;
+  width: 32%;
+  --lift: -19%;
 }
 
 /* 尾巴：两个递减的小圆从右下角往下飘，指向头顶。
@@ -455,20 +469,6 @@ body.l2d-on #rightside {
 
   .l2d-inner {
     padding: 13px 15px 11px;
-  }
-
-  .l2d-cloud::before {
-    left: 24px;
-    top: -12px;
-    width: 38px;
-    height: 38px;
-  }
-
-  .l2d-cloud::after {
-    right: 26px;
-    top: -18px;
-    width: 50px;
-    height: 50px;
   }
 
   .l2d-tail {
