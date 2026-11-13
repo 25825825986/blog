@@ -31,6 +31,16 @@
     history: []
   };
 
+  /* 被摸头的反应。轻一点，别一惊一乍：她只是被人顺手摸了一下。 */
+  var PATS = [
+    '……干嘛。',
+    '头发要乱了。',
+    '唔。',
+    '摸头长不高的。',
+    '就一下啊。',
+    '你手挺凉。'
+  ];
+
   var GREETINGS = [
     '来了。随便看。',
     '想聊什么？站里的事我大概都知道。',
@@ -48,6 +58,9 @@
   var lastReact = 0;
   var mix = {};        /* 参数 → 当前叠加量 */
   var lastTick = 0;
+  var hover = 0;       /* 悬停强度 0..1，单独一条平滑曲线 */
+  var hoverOn = false;
+  var hoverTimer = 0;
 
   function pick(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -318,6 +331,7 @@
       '  <img class="l2d-preview" src="/live2d/models/feiyu/preview.webp" alt="" decoding="async">' +
       '</div>' +
       '<div class="l2d-bar" aria-hidden="true"><i></i></div>' +
+      '<div class="l2d-head" role="button" aria-label="摸摸头"></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
       '<div class="l2d-bubble" hidden>' +
       '  <p class="l2d-text"></p>' +
@@ -334,6 +348,7 @@
     el.root = root;
     el.canvas = root.querySelector('.l2d-canvas');
     el.preview = root.querySelector('.l2d-preview');
+    el.head = root.querySelector('.l2d-head');
     el.hit = root.querySelector('.l2d-hit');
     el.bubble = root.querySelector('.l2d-bubble');
     el.text = root.querySelector('.l2d-text');
@@ -345,6 +360,18 @@
     el.hit.addEventListener('click', onPoke);
     el.hit.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPoke(); }
+    });
+
+    /* 摸头：头顶单独一块热区，因为它不在身体热区的范围内。
+       这块不给 tabindex——摸头是彩蛋，键盘用户走身体热区就好，
+       多一个 Tab 停靠点反而让人迷惑。 */
+    el.head.addEventListener('click', onPat);
+
+    /* 悬停：两块热区各绑一对，用 80ms 延迟关闭避免从头顶滑到身体时
+       中间那一下 leave 把状态抖断。 */
+    [el.head, el.hit].forEach(function (node) {
+      node.addEventListener('pointerenter', onHoverIn);
+      node.addEventListener('pointerleave', onHoverOut);
     });
     el.form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -410,6 +437,32 @@
         try { el.input.focus(); } catch (e) {}
       }
     }, 280);
+  }
+
+  function onHoverIn() {
+    clearTimeout(hoverTimer);
+    hoverOn = true;
+  }
+
+  function onHoverOut() {
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(function () { hoverOn = false; }, 80);
+  }
+
+  function onPat() {
+    if (STATE.busy) return;
+    STATE.interacted = true;
+
+    /* 摸头时把悬停压下去。不然「抬眼看你」和「闭眼笑」叠在一起，
+       头会先抬再笑，反而怪。动作做完鼠标没动，也就不会重新触发。 */
+    hoverOn = false;
+    clearTimeout(hoverTimer);
+
+    if (!STATE.open) openBubble();
+    say(pick(PATS));
+    react(Math.random() < 0.55 ? 'happy' : 'shy');
+
+    /* 不抢焦点：摸头是顺手一下，不是要跟她说话。 */
   }
 
   function boot() {
@@ -507,6 +560,19 @@
               else target = anim.fn(u);
             }
 
+            /* 悬停：抬眼看你。走单独一条 180ms 曲线，比动作的 70ms 慢，
+               不然鼠标一扫过去她就像被弹了一下。 */
+            hover += ((hoverOn ? 1 : 0) - hover) * (1 - Math.exp(-dt / 180));
+            if (hover > 0.003) {
+              if (!target) target = {};
+              target.ParamAngleY = (target.ParamAngleY || 0) - 5 * hover;
+              target.ParamAngleZ = (target.ParamAngleZ || 0) + 2.2 * hover;
+              target.ParamEyeBallY = (target.ParamEyeBallY || 0) + 0.14 * hover;
+              target.ParamBrowLY = (target.ParamBrowLY || 0) + 0.34 * hover;
+              target.ParamBrowRY = (target.ParamBrowRY || 0) + 0.34 * hover;
+              target.ParamMouthForm = (target.ParamMouthForm || 0) + 0.1 * hover;
+            }
+
             var k;
             if (target) {
               for (k in target) if (!(k in mix)) mix[k] = 0;
@@ -591,6 +657,20 @@
         try { model.focus(fx * 0.7, -fy * 0.7); } catch (err) {}
       });
     }, { passive: true });
+
+    /* 鼠标移出窗口时把视线收回正前方。不处理的话她会一直斜着眼睛
+       盯着你最后停的那个角落。库里的 focus 本身就是平滑的，给 0 就行。 */
+    function recenter() {
+      if (!model) return;
+      try { model.focus(0, 0); } catch (err) {}
+    }
+
+    document.addEventListener('pointerout', function (e) {
+      if (e.relatedTarget || e.toElement) return;
+      recenter();
+    });
+
+    window.addEventListener('blur', recenter);
   }
 
   function maybeGreet() {

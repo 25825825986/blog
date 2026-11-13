@@ -109,11 +109,26 @@
   left: 50%;
   bottom: 0;
   width: 150px;
-  height: 320px;
+  height: calc(100% - 96px);
   transform: translateX(-50%);
   pointer-events: auto;
   cursor: pointer;
   border-radius: 60px 60px 0 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 头顶热区：摸头。身体热区从脖子往下，头顶这一段它盖不到，得单开一块。
+   人物铺满整个画布高度（layout 里 scale = h*0.99 / 原高），所以从 top:0 起。 */
+.l2d-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 104px;
+  height: 96px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 52px 52px 34px 34px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -325,7 +340,13 @@ body.l2d-on #rightside {
 
   .l2d-hit {
     width: 112px;
-    height: 230px;
+    height: calc(100% - 72px);
+  }
+
+  .l2d-head {
+    width: 76px;
+    height: 72px;
+    border-radius: 38px 38px 26px 26px;
   }
 
   /* 手机上没地方把气泡放旁边，改放到模型上方 */
