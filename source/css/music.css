@@ -1006,6 +1006,10 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   height: 64vh;
   pointer-events: none;
   user-select: none;
+  /* 伪 3D：给一点透视，左列从远处滚到近处时才像“转过来”。
+     透视原点放在右边（当前句那一侧），越往左越远。 */
+  perspective: 640px;
+  perspective-origin: 100% 50%;
 }
 
 .mp-lyric__col {
@@ -1018,34 +1022,47 @@ html[data-theme="dark"] body.music-page .music-dock__time,
      再小就成了一堆挤在一起的字 */
   letter-spacing: 0.32em;
   color: #1f2d3d;
-  opacity: 0;
-  /* 进场从中间向两侧展开，出场向两侧散开，都走这一条曲线。
-     竖排的两列像两扇门，换句时才不突兀。 */
-  transform: translateX(14px);
-  transition: opacity 0.3s ease, transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
   max-height: 64vh;
   overflow: hidden;
+
+  /* 默认是“左列”：在左边、远一点、小一点、淡一点，等下一句上场 */
+  transform-origin: 100% 50%;
+  transform: translateX(-8px) translateZ(-90px) rotateY(10deg) scale(0.94);
+  opacity: 0.45;
+  transition: transform 0.58s cubic-bezier(0.22, 0.61, 0.36, 1),
+              opacity 0.4s ease;
 }
 
-/* 右列（当前句）从左边靠过来，和左列对称 */
-.mp-lyric__col:nth-child(2) {
-  transform: translateX(-14px);
-}
-
-.mp-lyric.is-in .mp-lyric__col {
-  opacity: 0.92;
+/* 右列 = 当前句。正视、全亮、在最近处 */
+.mp-lyric__col.is-cur {
   transform: none;
+  opacity: 1;
 }
 
-/* 换句：两列分别往左右滑出去。写在 is-in 后面，同时存在时以这条为准。 */
-.mp-lyric.is-out .mp-lyric__col:nth-child(1) {
-  opacity: 0;
-  transform: translateX(-24px);
+/* 左列唱到下一句了：往右滚一个「列宽 + 间距」，同时从远处拉到近处、
+   转正、放大。终点刚好盖在右列的静止位置上，接棒时看不出跳。 */
+.mp-lyric__col.is-advancing {
+  transform: translateX(calc(100% + 18px)) translateZ(0) rotateY(0deg) scale(1);
+  opacity: 1;
 }
 
-.mp-lyric.is-out .mp-lyric__col:nth-child(2) {
+/* 旧句向右滚出消散：再往右推、贴近观众（放大）、淡出。
+   它在上面，先看着它移开，才露出后面滚过来的新句。 */
+.mp-lyric__col.is-leaving {
+  transform: translateX(96px) translateZ(40px) rotateY(-14deg) scale(1.12);
   opacity: 0;
-  transform: translateX(24px);
+  z-index: 2;
+  /* 淡出走 ease-in：前一半几乎不掉透明度，先看着它滚出去，后半段才散。
+     用 ease 的话 200ms 就看不见了，“滚”这个动作根本看不到。 */
+  transition: transform 0.56s cubic-bezier(0.4, 0, 0.7, 1), opacity 0.44s ease-in 0.1s;
+}
+
+/* 新句刚换上时的起点：更远、更小、更左。
+   这里不写 transition: none——去掉这个类的时候还要靠它过渡回来，
+   瞬移那一下由 JS 临时挂的内联 transition 负责。 */
+.mp-lyric__col.is-fresh {
+  transform: translateX(-22px) translateZ(-130px) rotateY(14deg) scale(0.88);
+  opacity: 0;
 }
 
 /* 逐字高亮：没唱到的压暗，唱到的提亮。
@@ -1066,7 +1083,7 @@ html[data-theme="dark"] body.music-page .music-dock__time,
 
 /* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词。
    写在 is-in 后面，两者同时存在时以淡色为准。 */
-.mp-lyric.is-pending .mp-lyric__col {
+.mp-lyric.is-pending .mp-lyric__col.is-cur {
   opacity: 0.32;
 }
 
