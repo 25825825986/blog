@@ -1315,3 +1315,23 @@ div#tag {
 [data-theme="dark"] #aside-content .card-info-social-icons .social-icon i.icon-github {
   background-color: rgba(255, 255, 255, 0.86);
 }
+
+/* ── 导航栏在亮色底图上的可读性 ────────────────────────────────────────
+   底图从深色树林换成蓝天白云以后，导航栏的白色文字（站名、菜单、搜索图标）
+   全糊在云上了。和 #site-title 用同一套处理：深色字 + 一圈白色柔光，
+   落在云的亮部和蓝天的暗部都能读。
+   注意这是全站生效的，不只是音乐页——底图本来就是全站的。 */
+[data-theme="light"] #nav #blog-info .site-name,
+[data-theme="light"] #nav .menus_items .menus_item > a.site-page,
+[data-theme="light"] #nav .menus_items .menus_item > span.site-page,
+[data-theme="light"] #nav #search-button,
+[data-theme="light"] #nav #toggle-menu {
+  color: #1e2b3a;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.85), 0 0 3px rgba(255, 255, 255, 0.92);
+}
+
+/* 菜单 hover 的白胶囊在亮底上看不出来，换成浅墨色 */
+[data-theme="light"] #nav .menus_items .menus_item > a.site-page:hover,
+[data-theme="light"] #nav .menus_items .menus_item > span.site-page:hover {
+  background: rgba(30, 43, 58, 0.1);
+}
