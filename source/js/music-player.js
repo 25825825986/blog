@@ -851,6 +851,11 @@
     var line = lyric.lines[idx];
     var next = lyric.lines[idx + 1];
 
+    /* 同一句被多个时间戳重复标注的（YELLOW 最小间隔 0.02s、
+       Rolling star 甚至 0.00s），内容一样就不用重画——
+       重画一次就多一次闪烁，而且闪的是同一行字。 */
+    if (prevIdx >= 0 && line.text === lyric.lines[prevIdx].text) return;
+
     /* 只有「紧接着的下一句」才走滚动动画。seek 跳转、切歌直接换。 */
     var animate = prevIdx >= 0 && idx === prevIdx + 1;
 
@@ -893,10 +898,42 @@
     requestAnimationFrame(progressLoop);
   }
 
+  /* 短间隔换句：不滚动，只让字“浮”上来。
+
+     快歌里两句只隔 0.2~0.5 秒，滚动动画（600ms）根本跑不完，
+     而以前是直接 settle 硬切——字“叭”地一下变了，看着就是闪。
+     这里改成：字立即换掉，当前句从淡到亮走 180ms。
+     视觉上是文字浮现，不是闪烁。 */
+  function fadeSwap(c0, c1, cur, next) {
+    /* 先把位置一次性归零（transform 无过渡），再把字换掉 */
+    c0.style.transition = 'none';
+    c1.style.transition = 'none';
+    c0.classList.remove('is-advancing', 'is-leaving', 'is-fresh');
+    c1.classList.remove('is-advancing', 'is-leaving', 'is-fresh');
+    c1.classList.add('is-cur');
+    setCol(c1, cur);
+    setCol(c0, next || '');
+    void c1.offsetWidth;
+    c0.style.transition = '';
+    c1.style.transition = '';
+
+    /* 让当前句从 0.2 浮到 1。
+
+       这里用 Web Animations 而不是 CSS transition：transition 要
+       「先设 0.18 → 强制回流 → 再清空」，而快歌里两句只隔 0.2~0.5 秒，
+       连续切换时浏览器会把这几步合并成一次样式计算，起点根本落不下地
+       （实测 opacity 一直是 1，等于硬切）。WAAPI 不受这个影响。 */
+    if (c1.__fade) { try { c1.__fade.cancel(); } catch (e) {} }
+    c1.__fade = c1.animate(
+      [{ opacity: 0.2 }, { opacity: 1 }],
+      { duration: 180, easing: 'ease' }
+    );
+  }
+
   function paintLyric(cur, next, trans, instant, t0, t1, animate) {
     if (!lyricEl || !lyricColEls.length || !lyricTransEl) return;
     var now = Date.now();
-    if (!instant && now - lyricPaintedAt < 1100) instant = true;
+    var gap = now - lyricPaintedAt;
     lyricPaintedAt = now;
 
     var gen = ++lyricGen;
@@ -916,7 +953,6 @@
       void lyricEl.offsetWidth;
       c0.style.transition = '';
       c1.style.transition = '';
-
     }
 
     function commit() {
@@ -936,12 +972,15 @@
       void c0.offsetWidth;
       c0.style.transition = '';
       c0.classList.remove('is-fresh');
-
-
     }
 
     /* seek 跳转、切歌、pjax 回来：直接摆好，不走动画 */
     if (!animate || instant) { settle(); return; }
+
+    /* 上一句刚换完没多久（滚动动画都跑不完）——改成快速淡切。
+       阈值取 1.4s：滚动动画本身 600ms，加上人眼读完一句的时间，
+       低于这个值的句子让它“滚”只会糊成一团。 */
+    if (gap < 1400) { fadeSwap(c0, c1, cur, next); return; }
 
     /* 上一轮还没跑完就被打断，先把残留的类清掉再起新的 */
     c0.classList.remove('is-fresh');
