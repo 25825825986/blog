@@ -1012,21 +1012,24 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   perspective-origin: 100% 50%;
 }
 
-/* 歌词是 fixed 挂在页面上的，底下不一定是纯色。
-   亮色主题下音乐页左侧是那张树林插画，深色字直接叠上去会糊在树影里。
-   这里垫一层从左侧渐隐的纱：只盖歌词这一条，右边淡到完全透明，
-   不遮画面主体。暗色主题反过来用深色纱，顺带压住星空里的亮星。 */
+/* 底板只给暗色主题用。
+
+   亮色主题下试过垫白纱，两头不讨好：给到 0.74 还是糊在树影里，
+   给到 0.96 倒是清楚了，但整块插画被盖成死白。因为那张插画本身
+   明暗都有（白云、深树、亮水），单一透明度的纱总有一头不对。
+   所以亮色改成白字 + 深阴影（见 .mp-lyric__col），背景原样保留。 */
 .mp-lyric::before {
   content: '';
+  display: none;
   position: absolute;
   inset: -34px -30px -34px -20px;
   border-radius: 22px;
   /* 横向：左边浓、右边淡到没有。纵向靠 mask 再淡一次，
-     否则插画上会看到一条水平的硬边。 */
+     否则会看到一条水平的硬边。 */
   background: linear-gradient(90deg,
-    rgba(255, 255, 255, 0.74) 0%,
-    rgba(255, 255, 255, 0.64) 78%,
-    rgba(255, 255, 255, 0) 100%);
+    rgba(8, 12, 18, 0.62) 0%,
+    rgba(8, 12, 18, 0.5) 78%,
+    rgba(8, 12, 18, 0) 100%);
   /* 轻微毛玻璃：背景“退后”一点，比纯白纱自然，也不会把插画盖成灰块 */
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
@@ -1038,10 +1041,7 @@ html[data-theme="dark"] body.music-page .music-dock__time,
 
 html[data-theme="dark"] .mp-lyric::before,
 .dark .mp-lyric::before {
-  background: linear-gradient(90deg,
-    rgba(8, 12, 18, 0.6) 0%,
-    rgba(8, 12, 18, 0.48) 78%,
-    rgba(8, 12, 18, 0) 100%);
+  display: block;
 }
 
 .mp-lyric__col {
@@ -1053,14 +1053,19 @@ html[data-theme="dark"] .mp-lyric::before,
   /* 竖排的呼吸全在字距上。给到 0.32em 才像挂轴，
      再小就成了一堆挤在一起的字 */
   letter-spacing: 0.32em;
-  color: #1f2d3d;
+  /* 白字 + 深阴影。插画明暗都有，靠阴影把轮廓撑出来——
+     白字在深树上清楚，阴影在白云上还能描出边。 */
+  color: #f5f9fc;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.72),
+               0 0 10px rgba(0, 0, 0, 0.45),
+               0 0 2px rgba(0, 0, 0, 0.55);
   max-height: 64vh;
   overflow: hidden;
 
   /* 默认是“左列”：在左边、远一点、小一点、淡一点，等下一句上场 */
   transform-origin: 100% 50%;
   transform: translateX(-8px) translateZ(-90px) rotateY(10deg) scale(0.94);
-  opacity: 0.45;
+  opacity: 0.55;
   transition: transform 0.58s cubic-bezier(0.22, 0.61, 0.36, 1),
               opacity 0.4s ease;
 }
@@ -1100,7 +1105,7 @@ html[data-theme="dark"] .mp-lyric::before,
 /* 逐字高亮：没唱到的压暗，唱到的提亮。
    接口没有逐字时间（klyric 一直是空），是按字数把整行时长均分的。 */
 .mp-lyric__col .ch {
-  opacity: 0.4;
+  opacity: 0.52;
   transition: opacity 0.2s ease;
 }
 
@@ -1126,7 +1131,8 @@ html[data-theme="dark"] .mp-lyric::before,
   font-size: 12.5px;
   line-height: 1.6;
   letter-spacing: 0.04em;
-  color: #5d6879;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   opacity: 0;
   transition: opacity 0.42s ease 0.06s;
   max-height: 64vh;
@@ -1140,6 +1146,8 @@ html[data-theme="dark"] .mp-lyric::before,
 html[data-theme="dark"] .mp-lyric__col,
 .dark .mp-lyric__col {
   color: #e8eaed;
+  /* 暗色主题有底板压着，阴影不用那么重 */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 html[data-theme="dark"] .mp-lyric__trans,
