@@ -767,13 +767,9 @@
       lyricEl.classList.toggle('is-pending', lyricIdx < 0);
       return;
     }
-    var sub = [];
-    if (lyric.meta['作曲']) sub.push('作曲 ' + lyric.meta['作曲']);
-    /* 作曲编曲常常是同一人，别写成「作曲 xx · 编曲 xx」 */
-    if (lyric.meta['编曲'] && lyric.meta['编曲'] !== lyric.meta['作曲']) {
-      sub.push('编曲 ' + lyric.meta['编曲']);
-    }
-    paintLyric('纯音乐', '', sub.join(' · '), true, 0, 0, false);
+    /* 只留「纯音乐」三个字，不摆作曲 / 编曲署名。
+       署名仍然从歌词里剔掉（splitCredits），否则会被当成歌词唱出来。 */
+    paintLyric('纯音乐', '', '', true, 0, 0, false);
   }
 
   /* 按时间二分找当前句，比逐行遍历稳 */
