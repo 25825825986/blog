@@ -117,7 +117,7 @@ footer_img: transparent
 # 网站背景
 # 可以设置为颜色或图片
 # 图片格式: url(http://xxxxxx.com/xxx.jpg)
-background: /img/background-light.webp
+background: /img/background-day.webp
 
 # 封面设置
 cover:
@@ -1221,7 +1221,7 @@ inject:
   # 背景图预加载：#web_bg 的背景写在 inline style 上，浏览器要解析完样式才发现它，
   # 提前声明可以早点开始下载。但它是纯装饰层，不参与首屏文字渲染，
   # 所以优先级必须给 low —— 用 high 会跟阻塞渲染的 CSS 抢带宽，反而拖慢首次绘制。
-  - <link rel="preload" as="image" href="/img/background-light.webp" fetchpriority="low">
+  - <link rel="preload" as="image" href="/img/background-day.webp" fetchpriority="low">
   # 侧边栏样式
   - <link rel="stylesheet" href="/css/custom.css">
   # 装饰层样式（星空 / 日光动效 / 星尘涟漪 / 笔尖光标，已合并为一个文件）
