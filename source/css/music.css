@@ -1029,8 +1029,8 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   /* 底图是树林插画，明暗交错，白字白纱、深字白纱都试过，全有一头糊。
      最后统一成「深纱 + 白字」——和暗色主题同一套，任何底图上都能读。 */
   background: linear-gradient(90deg,
-    rgba(8, 12, 18, 0.66) 0%,
-    rgba(8, 12, 18, 0.54) 78%,
+    rgba(8, 12, 18, 0.74) 0%,
+    rgba(8, 12, 18, 0.6) 78%,
     rgba(8, 12, 18, 0) 100%);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
@@ -1062,9 +1062,15 @@ html[data-theme="dark"] .mp-lyric::before,
   /* 竖排的呼吸全在字距上。给到 0.32em 才像挂轴，
      再小就成了一堆挤在一起的字 */
   letter-spacing: 0.32em;
-  /* 白字 + 深阴影。底图明暗都有，靠阴影把轮廓撑出来。 */
-  color: #f2f6fa;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  /* 和背景的绿树拉开对比：
+     颜色用暖白 #fff8ea（冷绿配暖白，色温上也分得开），
+     字重加到 600 让笔画变实，再叠一道极淡的深描边和重阴影——
+     单纯换颜色不够，19px 细体压在绿树上是“糊”而不是“淡”。 */
+  color: #fff8ea;
+  font-weight: 600;
+  -webkit-text-stroke: 0.3px rgba(0, 0, 0, 0.28);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8), 0 0 14px rgba(0, 0, 0, 0.5);
   max-height: 64vh;
   overflow: hidden;
 
@@ -1137,8 +1143,8 @@ html[data-theme="dark"] .mp-lyric::before,
   font-size: 12.5px;
   line-height: 1.6;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.8);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  color: rgba(255, 250, 240, 0.88);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
   opacity: 0;
   transition: opacity 0.42s ease 0.06s;
   max-height: 64vh;
