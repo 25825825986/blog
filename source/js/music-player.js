@@ -664,14 +664,30 @@
 
   /* 歌词头部那几行「作词 : xxx」不是歌词，单独挑出来 */
   function splitCredits(rows) {
-    var meta = {}, lines = [];
+    var meta = {}, lines = [], inList = false;
     for (var i = 0; i < rows.length; i++) {
-      var m = CREDIT_RE.exec(rows[i].text);
-      if (m && rows[i].t < 8) {
+      var row = rows[i];
+      var m = CREDIT_RE.exec(row.text);
+      if (m && row.t < 8) {
         if (!meta[m[1]]) meta[m[1]] = m[2].trim();
-      } else {
-        lines.push(rows[i]);
+        continue;
       }
+
+      /* 致谢名单。有的歌开头会摆一段「愿望来自于：A/B/C/…」，
+         一行塞十几个名字。第一行有冒号能被 CREDIT_RE 挑走，
+         后面几行没有冒号，就全被当成歌词一句句唱过去了。
+         靠斜杠数量认：开头 20 秒内，一行里三个以上斜杠判为名单；
+         一旦进了名单，后面只要还带斜杠就继续丢（最后一行常只剩一个）。
+         限定 20 秒内，是怕误伤正文里正常的「你/我」。 */
+      if (row.t < 20) {
+        var slashes = (row.text.match(/\//g) || []).length;
+        if (slashes >= 3 || (inList && slashes >= 1)) {
+          inList = true;
+          continue;
+        }
+      }
+      inList = false;
+      lines.push(row);
     }
     return { meta: meta, lines: lines };
   }
