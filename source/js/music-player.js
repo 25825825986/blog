@@ -775,7 +775,7 @@
       /* pjax 回来时把进度区间一起还原，否则高亮要等到下一句才接上 */
       paintLyric(line.text, next ? next.text : '', transAt(line.t), true,
                  lyricIdx >= 0 ? line.t : 0,
-                 lyricIdx >= 0 ? lineEndT(idx) : 0,
+                 0,
                  false);
       /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
       lyricEl.classList.toggle('is-pending', lyricIdx < 0);
@@ -814,12 +814,10 @@
     var line = lyric.lines[idx];
     var next = lyric.lines[idx + 1];
 
-    var t1 = lineEndT(idx);
-
     /* 只有「紧接着的下一句」才走滚动动画。seek 跳转、切歌直接换。 */
     var animate = prevIdx >= 0 && idx === prevIdx + 1;
 
-    paintLyric(line.text, next ? next.text : '', transAt(line.t), false, line.t, t1, animate);
+    paintLyric(line.text, next ? next.text : '', transAt(line.t), false, 0, 0, animate);
   }
 
   function transAt(t) {
@@ -841,85 +839,23 @@
      两列是「上一句 / 这一句」，不是把一句从中间劈开——
      劈开的话读到一半要横跳，气就断了。 */
   function setCol(el, text) {
-    el.textContent = '';
-    for (var i = 0; i < text.length; i++) {
-      var ch = text.charAt(i);
-      var s = document.createElement('span');
-      s.className = 'ch';
-      /* 空格也要占一格，不然英文句子的字距会乱 */
-      s.textContent = ch === ' ' ? ' ' : ch;
-      el.appendChild(s);
-    }
+    /* 不再拆成单字 span——逐字高亮去掉了，现在整句一起亮。
+       空格换成不换行空格，否则竖排里英文句子的词间距会被折叠。 */
+    el.textContent = String(text || '').replace(/ /g, ' ');
   }
 
-  /* 这一句唱到什么时候。
+  /* 换句靠这个循环推。
 
-     有下一句就用下一句的开始时间——这是 LRC 里唯一可靠的“本句结束”信号。
-     以前这里还套了个 min(est * 1.5) 的封顶，结果 8 个字估成 3.84 秒，
-     实际唱了 6 秒，高亮早早走完就停在满格等下一句，看着就是不同步。
-     最后一句没有下一句，按字数估（0.45 秒/字）。 */
-  function lineEndT(idx) {
-    var line = lyric.lines[idx];
-    var next = lyric.lines[idx + 1];
-    if (next) return next.t;
-    return line.t + Math.max(2.5, line.text.length * 0.45);
-  }
-
-  /* 逐字高亮。
-
-     接口只给整行时间（返回里有 klyric 字段，但实测一直是空的），
-     所以按字数把这一行的时间均分。不是逐字对齐，但眼睛是跟得上的。
-
-     真要逐字，得另找一个返回增强型 LRC（[mm:ss.xx]<mm:ss.xx>字）的源，
-     那个格式里每个字自带时间。 */
-  var lyricProg = { t0: 0, t1: 0, n: 0, on: -1, col: null };
-
-  /* 歌词的换句和逐字高亮都靠这个循环推。
-
-     原来挂在 timeupdate 上，那是 4Hz（250ms 一跳）：
-     - 换句最多慢 250ms，快歌里字幕明显落后；
-     - 逐字高亮也是 250ms 一格，看着一格一格跳。
-     rAF 是跟着刷新率走的，两个问题一起解决。
-     两个函数内部都有「没变化就直接 return」的短路，空转开销很小。 */
+     原来挂在 timeupdate 上，那是 4Hz（250ms 一跳），快歌里字幕
+     明显慢半拍。rAF 跟着刷新率走，16ms 内就能反应。
+     syncLyric 内部有「idx 没变就 return」的短路，空转开销很小。 */
   function progressLoop() {
     if (audio && !audio.paused) {
-      var t = audio.currentTime || 0;
-      syncLyric(t);
-      paintProgress(t);
+      syncLyric(audio.currentTime || 0);
     }
     requestAnimationFrame(progressLoop);
   }
 
-  function paintProgress(t) {
-    var p = lyricProg;
-    if (!p.col || !p.n) return;
-    var span = p.t1 - p.t0;
-    /* 没有有效区间（前奏预告、纯音乐）就不动，保持全暗 */
-    if (span <= 0.3) return;
-
-    var k = (t - p.t0) / span;
-    if (k < 0) k = 0;
-    if (k > 1) k = 1;
-    var n = Math.round(k * p.n);
-    if (n === p.on) return;
-    p.on = n;
-
-    var kids = p.col.children;
-    for (var i = 0; i < kids.length; i++) {
-      if (i < n) kids[i].classList.add('is-on');
-      else kids[i].classList.remove('is-on');
-    }
-  }
-
-  /* 画一句。
-
-     cur  = 右列，正在唱的那句
-     next = 左列，等着接棒的下一句
-
-     换句时：右列向右滚出去、放大、消散；左列滚到右列的位置，
-     一边滚一边从远处拉近（translateZ + rotateY + scale）。
-     左列的动画终点刚好是右列的静止位置，两边内容也一样，
-     所以接棒那一帧看不出切换。 */
   function paintLyric(cur, next, trans, instant, t0, t1, animate) {
     if (!lyricEl || !lyricColEls.length || !lyricTransEl) return;
     var now = Date.now();
@@ -932,22 +868,6 @@
     var c0 = lyricColEls[0];
     var c1 = lyricColEls[1];
 
-    function setProg() {
-      /* 进度只跟右列走。字数去空格算，不然英文句子的高亮会慢半拍 */
-      lyricProg.col = c1;
-      lyricProg.n = String(cur || '').replace(/\s/g, '').length;
-      lyricProg.t0 = t0 || 0;
-      lyricProg.t1 = t1 || 0;
-      lyricProg.on = -1;
-    }
-
-    /* 纯音乐、署名、前奏预告没有时间区间，不是“唱到哪”，整列点亮 */
-    function lit() {
-      if (t1) return;
-      var ks = c1.children;
-      for (var i = 0; i < ks.length; i++) ks[i].classList.add('is-on');
-    }
-
     function settle() {
       c0.style.transition = 'none';
       c1.style.transition = 'none';
@@ -959,9 +879,7 @@
       void lyricEl.offsetWidth;
       c0.style.transition = '';
       c1.style.transition = '';
-      setProg();
-      lit();
-      paintProgress(audio ? audio.currentTime || 0 : 0);
+
     }
 
     function commit() {
@@ -982,9 +900,7 @@
       c0.style.transition = '';
       c0.classList.remove('is-fresh');
 
-      setProg();
-      lit();
-      paintProgress(audio ? audio.currentTime || 0 : 0);
+
     }
 
     /* seek 跳转、切歌、pjax 回来：直接摆好，不走动画 */

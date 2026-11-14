@@ -1113,27 +1113,6 @@ html[data-theme="dark"] .mp-lyric::before,
   opacity: 0;
 }
 
-/* 逐字高亮：没唱到的压暗，唱到的提亮。
-   接口没有逐字时间（klyric 一直是空），是按字数把整行时长均分的。 */
-.mp-lyric__col .ch {
-  opacity: 0.52;
-  transition: opacity 0.2s ease;
-}
-
-.mp-lyric__col .ch.is-on {
-  opacity: 1;
-}
-
-/* 前奏预告整列已经是淡的，字就别再压一道，不然叠到 0.13 看不清 */
-.mp-lyric.is-pending .mp-lyric__col .ch {
-  opacity: 1;
-}
-
-/* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词。
-
-   注意要压「所有列」，不能只压当前句——只压 is-cur 的话，
-   右列掉到 0.32、左列还是 0.55，看起来反而是左边那句在亮。
-   两列一样淡，才是“还没开始唱”的样子。 */
 .mp-lyric.is-pending .mp-lyric__col {
   opacity: 0.34;
 }
@@ -1181,7 +1160,6 @@ html[data-theme="dark"] .mp-lyric__trans,
 
 @media (prefers-reduced-motion: reduce) {
   .mp-lyric__col,
-  .mp-lyric__col .ch,
   .mp-lyric__trans {
     transition: none;
   }
