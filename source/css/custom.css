@@ -145,12 +145,18 @@ button:focus-visible,
    这里改成深色字，并加一圈白色柔光，保证落在亮部暗部都能读。
    暗色模式仍是白字，不用动。 */
 [data-theme="light"] #page-header.full_page #site-title {
-  color: #1e2b3a;
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.88), 0 0 4px rgba(255, 255, 255, 0.95);
+  color: #16232f;
+  /* 底图是湖光山色，标题正好压在山脊上。只靠一层淡光晕不够，
+     叠三层：外圈大范围提亮、中圈把笔画和山体分开、内圈贴边描一道。 */
+  text-shadow: 0 0 26px rgba(255, 255, 255, 0.96),
+               0 0 10px rgba(255, 255, 255, 0.95),
+               0 2px 3px rgba(255, 255, 255, 0.9);
 }
 [data-theme="light"] #page-header.full_page #site-subtitle {
-  color: #2f4055;
-  text-shadow: 0 0 16px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.95);
+  color: #1a2734;
+  text-shadow: 0 0 22px rgba(255, 255, 255, 0.96),
+               0 0 8px rgba(255, 255, 255, 0.95),
+               0 1px 2px rgba(255, 255, 255, 0.92);
 }
 [data-theme="light"] #page-header.full_page #scroll-down .scroll-down-effects {
   color: #2f4055;
