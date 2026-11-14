@@ -452,6 +452,7 @@
   function initAudio() {
     audio = new Audio();
     audio.preload = 'none';
+    requestAnimationFrame(progressLoop);
     /* 调试钩子：控制台里能直接 seek、看当前时间和歌词状态 */
     window.__mp = { audio: audio };
 
@@ -473,8 +474,8 @@
 
     audio.addEventListener('timeupdate', function () {
       updateProgress();
-      syncLyric(audio.currentTime || 0);
-      paintProgress(audio.currentTime || 0);
+      /* 歌词不挂在这里。timeupdate 只有 4Hz，最多滞后 250ms，
+         快歌里字幕会明显慢半拍。改成 rAF 驱动，见 progressLoop。 */
       saveState(false);
     });
 
@@ -771,13 +772,10 @@
       var idx = lyricIdx >= 0 ? lyricIdx : 0;
       var line = lyric.lines[idx];
       var next = lyric.lines[idx + 1];
-      var est = Math.max(1.6, line.text.length * 0.32);
       /* pjax 回来时把进度区间一起还原，否则高亮要等到下一句才接上 */
       paintLyric(line.text, next ? next.text : '', transAt(line.t), true,
                  lyricIdx >= 0 ? line.t : 0,
-                 lyricIdx >= 0
-                   ? (next ? Math.min(next.t, line.t + est * 1.5) : line.t + est)
-                   : 0,
+                 lyricIdx >= 0 ? lineEndT(idx) : 0,
                  false);
       /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
       lyricEl.classList.toggle('is-pending', lyricIdx < 0);
@@ -816,10 +814,7 @@
     var line = lyric.lines[idx];
     var next = lyric.lines[idx + 1];
 
-    /* 这一句唱多久。下一句来得太晚（间奏）就按字数估一个，
-       不然高亮会爬得比唱还慢。 */
-    var est = Math.max(1.6, line.text.length * 0.32);
-    var t1 = next ? Math.min(next.t, line.t + est * 1.5) : line.t + est;
+    var t1 = lineEndT(idx);
 
     /* 只有「紧接着的下一句」才走滚动动画。seek 跳转、切歌直接换。 */
     var animate = prevIdx >= 0 && idx === prevIdx + 1;
@@ -857,6 +852,19 @@
     }
   }
 
+  /* 这一句唱到什么时候。
+
+     有下一句就用下一句的开始时间——这是 LRC 里唯一可靠的“本句结束”信号。
+     以前这里还套了个 min(est * 1.5) 的封顶，结果 8 个字估成 3.84 秒，
+     实际唱了 6 秒，高亮早早走完就停在满格等下一句，看着就是不同步。
+     最后一句没有下一句，按字数估（0.45 秒/字）。 */
+  function lineEndT(idx) {
+    var line = lyric.lines[idx];
+    var next = lyric.lines[idx + 1];
+    if (next) return next.t;
+    return line.t + Math.max(2.5, line.text.length * 0.45);
+  }
+
   /* 逐字高亮。
 
      接口只给整行时间（返回里有 klyric 字段，但实测一直是空的），
@@ -865,6 +873,22 @@
      真要逐字，得另找一个返回增强型 LRC（[mm:ss.xx]<mm:ss.xx>字）的源，
      那个格式里每个字自带时间。 */
   var lyricProg = { t0: 0, t1: 0, n: 0, on: -1, col: null };
+
+  /* 歌词的换句和逐字高亮都靠这个循环推。
+
+     原来挂在 timeupdate 上，那是 4Hz（250ms 一跳）：
+     - 换句最多慢 250ms，快歌里字幕明显落后；
+     - 逐字高亮也是 250ms 一格，看着一格一格跳。
+     rAF 是跟着刷新率走的，两个问题一起解决。
+     两个函数内部都有「没变化就直接 return」的短路，空转开销很小。 */
+  function progressLoop() {
+    if (audio && !audio.paused) {
+      var t = audio.currentTime || 0;
+      syncLyric(t);
+      paintProgress(t);
+    }
+    requestAnimationFrame(progressLoop);
+  }
 
   function paintProgress(t) {
     var p = lyricProg;
