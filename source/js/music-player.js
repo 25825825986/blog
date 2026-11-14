@@ -459,6 +459,7 @@
     audio.addEventListener('play', function () {
       failCount = 0;
       dock.classList.add('playing');
+      syncLyricVisible();
       playBtn.innerHTML = ICONS.pause;
       playBtn.setAttribute('aria-label', '暂停');
       highlightRow();
@@ -466,6 +467,7 @@
 
     audio.addEventListener('pause', function () {
       dock.classList.remove('playing');
+      syncLyricVisible();
       playBtn.innerHTML = ICONS.play;
       playBtn.setAttribute('aria-label', '播放');
       highlightRow();
@@ -722,10 +724,45 @@
       });
   }
 
+  /* 歌词层是全站的，不只属于音乐页。
+
+     挂在 body 下面有两个原因：
+     1. 音乐页里它的祖先有一层 div 带 backdrop-filter: blur(18px)，
+        而 backdrop-filter 和 transform 一样会创建包含块——
+        position: fixed 会退化成相对那层定位，top: 50% 算到页面中间去；
+     2. 换页时 body 不被 pjax 替换，这一层能活下来，不用反复重建。 */
+  function buildLyricLayer() {
+    var node = document.getElementById('mp-lyric-layer');
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'mp-lyric';
+      node.id = 'mp-lyric-layer';
+      node.setAttribute('aria-live', 'polite');
+      node.setAttribute('aria-label', '歌词');
+      node.innerHTML = '<p class="mp-lyric__col"></p>' +
+                       '<p class="mp-lyric__col"></p>' +
+                       '<p class="mp-lyric__trans" hidden></p>';
+      document.body.appendChild(node);
+    }
+    return node;
+  }
+
+  /* 什么时候显示。
+
+     在放歌就全站显示；没放歌时只在音乐页显示（那里是“看歌词”的场景，
+     暂停着也该能看到停在那一句）。首页、文章页暂停时左边凭空挂一行
+     字很奇怪，所以隐掉。 */
+  function syncLyricVisible() {
+    var playing = audio && !audio.paused && !!audio.src;
+    var on = playing || isMusicPage();
+    document.body.classList.toggle('lyric-on', on);
+  }
+
   /* pjax 换页后 DOM 是新的，元素引用要重新拿一遍，再按当前状态重画 */
   function mountLyric() {
     /* 歌词层在 body 下，不在 pageEl 里 */
-    lyricEl = document.getElementById('mp-lyric-layer');
+    lyricEl = buildLyricLayer();
+    syncLyricVisible();
     lyricColEls = lyricEl
       ? Array.prototype.slice.call(lyricEl.querySelectorAll('.mp-lyric__col'))
       : [];
@@ -924,10 +961,6 @@
     var host = document.getElementById('article-container');
     if (!host) return;
 
-    /* 重建前先把上一份歌词层拆了，不然会叠出好几层 */
-    var stale = document.getElementById('mp-lyric-layer');
-    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-
     pageEl = document.createElement('section');
     pageEl.className = 'mp';
     pageEl.id = 'music-page';
@@ -948,11 +981,6 @@
       '</div>',
       '</div>',
       '</header>',
-      '<div class="mp-lyric" id="mp-lyric-layer" aria-live="polite" aria-label="歌词">',
-      '<p class="mp-lyric__col"></p>',
-      '<p class="mp-lyric__col"></p>',
-      '<p class="mp-lyric__trans" hidden></p>',
-      '</div>',
       '<nav class="mp-tabs" aria-label="歌单切换"></nav>',
       '<div class="mp-panel">',
       '<div class="mp-head">',
@@ -967,15 +995,8 @@
 
     host.appendChild(pageEl);
 
-    /* 歌词层单独挂到 body。
-       它的祖先里有一层 div 带 backdrop-filter: blur(18px)，
-       而 backdrop-filter 和 transform 一样会创建包含块——
-       position: fixed 会退化成相对那层定位，top: 50% 算到页面中间去了。
-       挂到 body 下面就没有任何祖先能影响它。 */
-    var lyricNode = pageEl.querySelector('.mp-lyric');
-    if (lyricNode) document.body.appendChild(lyricNode);
-
     rowsEl = pageEl.querySelector('.mp-rows');
+    buildLyricLayer();
     mountLyric();
 
     pageEl.querySelector('.mp-tabs').addEventListener('click', function (e) {
@@ -1243,11 +1264,9 @@
     } else {
       pageEl = null;
       rowsEl = null;
-      lyricEl = null;
-      lyricColEls = [];
-      lyricTransEl = null;
-      var layer = document.getElementById('mp-lyric-layer');
-      if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
+      /* 歌词层留着——全站共用，正在放歌时还得显示。 */
+      buildLyricLayer();
+      mountLyric();
     }
   }
 

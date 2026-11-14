@@ -1010,6 +1010,19 @@ html[data-theme="dark"] body.music-page .music-dock__time,
      透视原点放在右边（当前句那一侧），越往左越远。 */
   perspective: 640px;
   perspective-origin: 100% 50%;
+
+  /* 全站共用的一层，默认不出现在页面上。
+     什么时候显出来由 body.lyric-on 决定（放歌中，或者人在音乐页）。
+     用 opacity + visibility 而不是 display，才有淡入淡出；
+     visibility 也带过渡，延迟到透明度走完才真正隐起来。 */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.36s ease, visibility 0.36s;
+}
+
+body.lyric-on .mp-lyric {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* 底板只给暗色主题用。
@@ -1149,10 +1162,17 @@ html[data-theme="dark"] .mp-lyric__trans,
   text-shadow: none;
 }
 
-/* 手机上不挂这幅轴。
-   竖排两列要占 60~70px 宽，而 390px 的屏左侧根本没有留白——
-   卡片从 x=16 就开始了，歌词会直接压在封面和「共 N 首」上。 */
-@media (max-width: 768px) {
+/* 窄屏不挂这幅轴。
+
+   竖排两列占 83px 宽（x=16~99）。正文卡片 `#post` 的左边位置是
+   (视口宽 − 1200) / 2 + 15：
+     1440 → 135，和歌词差 36px，安全；
+     1366 → 98，刚好贴边；
+     1280 → 55，压 44px；
+     1024 → 30，压得更深。
+   试过窄屏改成底部横排字幕，但文章页正文一直延伸到底，字幕会压在
+   段落上——白字在浅色卡片上读不了。窄屏左侧真的没有留白，只能隐掉。 */
+@media (max-width: 1399px) {
   .mp-lyric {
     display: none;
   }
