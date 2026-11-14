@@ -1130,9 +1130,12 @@ html[data-theme="dark"] .mp-lyric::before,
 }
 
 /* 前奏里还没唱到的那一句，淡着摆，算预告不算歌词。
-   写在 is-in 后面，两者同时存在时以淡色为准。 */
-.mp-lyric.is-pending .mp-lyric__col.is-cur {
-  opacity: 0.32;
+
+   注意要压「所有列」，不能只压当前句——只压 is-cur 的话，
+   右列掉到 0.32、左列还是 0.55，看起来反而是左边那句在亮。
+   两列一样淡，才是“还没开始唱”的样子。 */
+.mp-lyric.is-pending .mp-lyric__col {
+  opacity: 0.34;
 }
 
 .mp-lyric__trans {
