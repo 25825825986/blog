@@ -1012,6 +1012,38 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   perspective-origin: 100% 50%;
 }
 
+/* 歌词是 fixed 挂在页面上的，底下不一定是纯色。
+   亮色主题下音乐页左侧是那张树林插画，深色字直接叠上去会糊在树影里。
+   这里垫一层从左侧渐隐的纱：只盖歌词这一条，右边淡到完全透明，
+   不遮画面主体。暗色主题反过来用深色纱，顺带压住星空里的亮星。 */
+.mp-lyric::before {
+  content: '';
+  position: absolute;
+  inset: -34px -30px -34px -20px;
+  border-radius: 22px;
+  /* 横向：左边浓、右边淡到没有。纵向靠 mask 再淡一次，
+     否则插画上会看到一条水平的硬边。 */
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.74) 0%,
+    rgba(255, 255, 255, 0.64) 78%,
+    rgba(255, 255, 255, 0) 100%);
+  /* 轻微毛玻璃：背景“退后”一点，比纯白纱自然，也不会把插画盖成灰块 */
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 88%, transparent 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .mp-lyric::before,
+.dark .mp-lyric::before {
+  background: linear-gradient(90deg,
+    rgba(8, 12, 18, 0.6) 0%,
+    rgba(8, 12, 18, 0.48) 78%,
+    rgba(8, 12, 18, 0) 100%);
+}
+
 .mp-lyric__col {
   margin: 0;
   writing-mode: vertical-rl;
