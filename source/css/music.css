@@ -1020,7 +1020,9 @@ html[data-theme="dark"] body.music-page .music-dock__time,
    所以亮色改成白字 + 深阴影（见 .mp-lyric__col），背景原样保留。 */
 .mp-lyric::before {
   content: '';
-  display: block;
+  /* 不要底板。字本身（暖白 + 600 + 淡描边 + 双层阴影）已经够读，
+     底板反而把背景挡住了。规则留着，以后想恢复改这一行就行。 */
+  display: none;
   position: absolute;
   inset: -34px -30px -34px -20px;
   border-radius: 22px;
@@ -1032,9 +1034,6 @@ html[data-theme="dark"] body.music-page .music-dock__time,
     rgba(8, 12, 18, 0.74) 0%,
     rgba(8, 12, 18, 0.6) 78%,
     rgba(8, 12, 18, 0) 100%);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  /* 轻微毛玻璃：背景“退后”一点，比纯白纱自然，也不会把插画盖成灰块 */
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 88%, transparent 100%);
