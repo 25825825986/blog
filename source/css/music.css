@@ -1026,12 +1026,14 @@ html[data-theme="dark"] body.music-page .music-dock__time,
   border-radius: 22px;
   /* 横向：左边浓、右边淡到没有。纵向靠 mask 再淡一次，
      否则会看到一条水平的硬边。 */
-  /* 亮色底图换成云海以后，背景整体是浅的，这里只需要一层极淡的白纱
-     把云影压平一点——0.42 在浅色背景上几乎看不出来，不会像贴纸。 */
+  /* 底图是树林插画，明暗交错，白字白纱、深字白纱都试过，全有一头糊。
+     最后统一成「深纱 + 白字」——和暗色主题同一套，任何底图上都能读。 */
   background: linear-gradient(90deg,
-    rgba(255, 255, 255, 0.44) 0%,
-    rgba(255, 255, 255, 0.32) 78%,
-    rgba(255, 255, 255, 0) 100%);
+    rgba(8, 12, 18, 0.66) 0%,
+    rgba(8, 12, 18, 0.54) 78%,
+    rgba(8, 12, 18, 0) 100%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   /* 轻微毛玻璃：背景“退后”一点，比纯白纱自然，也不会把插画盖成灰块 */
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
@@ -1060,10 +1062,9 @@ html[data-theme="dark"] .mp-lyric::before,
   /* 竖排的呼吸全在字距上。给到 0.32em 才像挂轴，
      再小就成了一堆挤在一起的字 */
   letter-spacing: 0.32em;
-  /* 深字 + 极淡的白色光晕。底图换成云海之后整体是浅的，
-     深字天然够读；光晕只用来在云影那几处把笔画和背景拉开。 */
-  color: #1f2d3d;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7);
+  /* 白字 + 深阴影。底图明暗都有，靠阴影把轮廓撑出来。 */
+  color: #f2f6fa;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   max-height: 64vh;
   overflow: hidden;
 
@@ -1136,8 +1137,8 @@ html[data-theme="dark"] .mp-lyric::before,
   font-size: 12.5px;
   line-height: 1.6;
   letter-spacing: 0.04em;
-  color: #4a5666;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   opacity: 0;
   transition: opacity 0.42s ease 0.06s;
   max-height: 64vh;
