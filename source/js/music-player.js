@@ -417,6 +417,7 @@
     highlightRow();
     updateProgress();
     syncPlayAllLabel();
+    if (npOpen) npSync();
     if (autoplay) {
       audio.play().catch(function () {
         console.warn('[music] 自动播放被拦截');
@@ -452,6 +453,10 @@
   function initAudio() {
     audio = new Audio();
     audio.preload = 'none';
+    /* 频谱要读音频样本，必须走 CORS。网易云 CDN 回
+       Access-Control-Allow-Origin: *，万一哪个源不回，播放会直接失败——
+       error 处理里有降级，去掉 crossOrigin 重试一次。 */
+    audio.crossOrigin = 'anonymous';
     requestAnimationFrame(progressLoop);
     /* 调试钩子，也给看板娘用：她能通过它切歌、暂停。
        control 只暴露几个无副作用的动作，不开放任意函数。 */
@@ -472,6 +477,7 @@
       playBtn.innerHTML = ICONS.pause;
       playBtn.setAttribute('aria-label', '暂停');
       highlightRow();
+      if (npOpen) npSyncPlayIcon();
     });
 
     audio.addEventListener('pause', function () {
@@ -481,6 +487,7 @@
       playBtn.setAttribute('aria-label', '播放');
       highlightRow();
       saveState(true);
+      if (npOpen) npSyncPlayIcon();
     });
 
     audio.addEventListener('timeupdate', function () {
@@ -512,6 +519,18 @@
     audio.addEventListener('ended', next);
 
     audio.addEventListener('error', function () {
+      /* 带了 crossOrigin 但源没回 CORS 头，浏览器会当成加载失败（code 4）。
+         去掉再试一次——宁可没有频谱，也不能没声音。只试一次，
+         免得 URL 真过期时在这儿空转。 */
+      if (audio.crossOrigin && !corsDropped && audio.error &&
+          audio.error.code === 4) {
+        corsDropped = true;
+        var retry = audio.src;
+        audio.crossOrigin = null;
+        audio.src = retry;
+        audio.play().catch(function () {});
+        return;
+      }
       failCount += 1;
       if (failCount > 5) {
         console.warn('[music] 连续多首无法播放，先停下');
@@ -938,6 +957,9 @@
     if (audio && !audio.paused) {
       syncLyric(audio.currentTime || 0);
     }
+    /* 沉浸页的进度条也挂这里。timeupdate 只有 4Hz，
+       全屏那么大一条进度会明显一跳一跳。 */
+    if (npOpen) npTick();
     requestAnimationFrame(progressLoop);
   }
 
@@ -1338,7 +1360,332 @@
     });
 
     bindTimeline();
+
+    /* 点封面进沉浸模式。dock 的 click 处理里已经排除了封面，
+       不会和「点空白收起」打架 */
+    coverBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      openNp();
+    });
   }
+
+  /* ── 沉浸模式 ──────────────────────────────────────────────────────
+
+     全屏唱片。点 dock 的封面进来，Esc 或右上角退出。
+
+     频谱走 Web Audio。createMediaElementSource 会把 audio 的输出从默认
+     路径上摘下来，必须自己接回 destination，否则整首歌静音——这是这个
+     API 最容易踩的坑。它对同一个 audio 元素只能调一次，重复调用抛
+     InvalidStateError，所以拿 actx 是否存在当开关。
+
+     封面取色用 canvas 读像素。网易云的图带 Access-Control-Allow-Origin: *，
+     能读；哪天不带了 getImageData 会抛，退回默认蓝，不影响播放。 */
+
+  var npEl = null, npBg = null, npImg = null, npTitle = null, npArtist = null;
+  var npFill = null, npDot = null, npCur = null, npDur = null, npPlay = null;
+  var npBar = null, npSpec = null;
+  var npOpen = false, npAccentColor = '#7aa7e8', npAccentFor = '';
+
+  var actx = null, analyser = null, freqData = null, specRaf = 0;
+  /* CORS 降级只试一次，不然 URL 真过期时会在这儿空转 */
+  var corsDropped = false;
+
+  var NP_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function buildNp() {
+    if (npEl) return npEl;
+
+    npEl = document.createElement('div');
+    npEl.className = 'np';
+    npEl.id = 'np-layer';
+    npEl.setAttribute('aria-hidden', 'true');
+    npEl.innerHTML = [
+      '<div class="np-bg"></div>',
+      '<div class="np-veil"></div>',
+      '<canvas class="np-spec" aria-hidden="true"></canvas>',
+      '<button class="np-close" type="button" aria-label="退出沉浸模式">' + NP_CLOSE + '</button>',
+      '<div class="np-stage">',
+        '<div class="np-left">',
+          '<div class="np-cover"><img alt=""></div>',
+          '<div class="np-meta">',
+            '<h2 class="np-title">未在播放</h2>',
+            '<p class="np-artist"></p>',
+          '</div>',
+          '<div class="np-progress">',
+            '<span class="np-time np-time--cur">0:00</span>',
+            '<div class="np-bar" role="slider" tabindex="0" aria-label="播放进度">',
+              '<span class="np-fill"></span>',
+              '<span class="np-dot"></span>',
+            '</div>',
+            '<span class="np-time np-time--dur">0:00</span>',
+          '</div>',
+          '<div class="np-ctrl">',
+            '<button class="np-btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
+            '<button class="np-btn np-play" type="button" data-act="play" aria-label="播放">' + ICONS.play + '</button>',
+            '<button class="np-btn" type="button" data-act="next" aria-label="下一首">' + ICONS.next + '</button>',
+          '</div>',
+        '</div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(npEl);
+
+    npBg = npEl.querySelector('.np-bg');
+    npImg = npEl.querySelector('.np-cover img');
+    npTitle = npEl.querySelector('.np-title');
+    npArtist = npEl.querySelector('.np-artist');
+    npFill = npEl.querySelector('.np-fill');
+    npDot = npEl.querySelector('.np-dot');
+    npCur = npEl.querySelector('.np-time--cur');
+    npDur = npEl.querySelector('.np-time--dur');
+    npPlay = npEl.querySelector('.np-play');
+    npBar = npEl.querySelector('.np-bar');
+    npSpec = npEl.querySelector('.np-spec');
+
+    npEl.querySelector('.np-close').addEventListener('click', closeNp);
+
+    npEl.querySelector('.np-ctrl').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      var act = btn.getAttribute('data-act');
+      if (act === 'play') togglePlay();
+      else if (act === 'next') next();
+      else if (act === 'prev') prev();
+    });
+
+    bindNpBar();
+    return npEl;
+  }
+
+  /* 沉浸页自己的进度条。dock 那条太细，全屏下够不着，
+     这里热区给到 20px，按下就能拖 */
+  function bindNpBar() {
+    var dragging = false;
+
+    function seekTo(clientX) {
+      var dur = audio && isFinite(audio.duration) ? audio.duration : 0;
+      if (!dur) return;
+      var r = npBar.getBoundingClientRect();
+      if (!r.width) return;
+      var ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      audio.currentTime = ratio * dur;
+      npTick();
+    }
+
+    npBar.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      npBar.classList.add('is-drag');
+      try { npBar.setPointerCapture(e.pointerId); } catch (err) {}
+      seekTo(e.clientX);
+    });
+
+    npBar.addEventListener('pointermove', function (e) {
+      if (dragging) seekTo(e.clientX);
+    });
+
+    function stop() {
+      dragging = false;
+      npBar.classList.remove('is-drag');
+    }
+
+    npBar.addEventListener('pointerup', stop);
+    npBar.addEventListener('pointercancel', stop);
+  }
+
+  function openNp() {
+    if (npOpen) return;
+    buildNp();
+    npSync();
+    npOpen = true;
+    document.body.classList.add('np-on');
+    npEl.classList.add('is-on');
+    npEl.setAttribute('aria-hidden', 'false');
+
+    /* AudioContext 要在用户手势里 resume。这里正好是点击进来的 */
+    if (initSpectrum()) {
+      if (actx.state === 'suspended') actx.resume().catch(function () {});
+      if (!specRaf) specRaf = requestAnimationFrame(specLoop);
+    }
+  }
+
+  function closeNp() {
+    if (!npOpen) return;
+    npOpen = false;
+    document.body.classList.remove('np-on');
+    npEl.classList.remove('is-on');
+    npEl.setAttribute('aria-hidden', 'true');
+    if (specRaf) { cancelAnimationFrame(specRaf); specRaf = 0; }
+  }
+
+  function npSync() {
+    if (!npEl) return;
+    var item = playlist[index] || {};
+    var pic = item.pic || '';
+
+    npTitle.textContent = item.title || '未在播放';
+    npArtist.textContent = item.author || '';
+
+    if (pic) {
+      npImg.src = pic;
+      npImg.style.visibility = '';
+      npBg.style.backgroundImage = 'url("' + pic + '")';
+    } else {
+      npImg.removeAttribute('src');
+      npImg.style.visibility = 'hidden';
+      npBg.style.backgroundImage = '';
+    }
+
+    if (pic && pic !== npAccentFor) {
+      npAccentFor = pic;
+      pickAccent(pic);
+    }
+
+    npTick();
+    npSyncPlayIcon();
+  }
+
+  function npTick() {
+    if (!npEl) return;
+    var dur = audio && isFinite(audio.duration) ? audio.duration : 0;
+    var cur = audio ? audio.currentTime : 0;
+    var pct = dur ? Math.min(100, (cur / dur) * 100) : 0;
+    npFill.style.width = pct + '%';
+    npDot.style.left = pct + '%';
+    npCur.textContent = fmtTime(cur);
+    npDur.textContent = fmtTime(dur);
+  }
+
+  function npSyncPlayIcon() {
+    if (!npEl) return;
+    var playing = !!(audio && !audio.paused);
+    npEl.classList.toggle('is-paused', !playing);
+    npPlay.innerHTML = playing ? ICONS.pause : ICONS.play;
+    npPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+  }
+
+  function initSpectrum() {
+    if (actx) return !!analyser;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC || !audio) return false;
+
+    try {
+      actx = new AC();
+      var src = actx.createMediaElementSource(audio);
+      /* 先接回扬声器再谈分析。顺序反过来的话，analyser 那步万一抛了，
+         声音就永远出不来，用户只会觉得「点了没声」 */
+      src.connect(actx.destination);
+      analyser = actx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.82;
+      analyser.minDecibels = -82;
+      analyser.maxDecibels = -16;
+      src.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      return true;
+    } catch (e) {
+      console.warn('[music] 频谱起不来，退回静态背景', e);
+      analyser = null;
+      freqData = null;
+      return false;
+    }
+  }
+
+  function specLoop() {
+    specRaf = requestAnimationFrame(specLoop);
+    if (!analyser || !npSpec || !npOpen) return;
+
+    var c = npSpec;
+    var w = c.clientWidth;
+    var h = c.clientHeight;
+    if (!w || !h) return;
+
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var cw = Math.round(w * dpr);
+    var ch = Math.round(h * dpr);
+    if (c.width !== cw || c.height !== ch) {
+      c.width = cw;
+      c.height = ch;
+    }
+
+    var ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, cw, ch);
+
+    analyser.getByteFrequencyData(freqData);
+
+    var bars = 64;
+    /* 只取前 60% 的频段。后面全是高频噪声，人耳听不出，画出来只是毛刺 */
+    var span = Math.floor(freqData.length * 0.6);
+    var step = Math.max(1, Math.floor(span / bars));
+    var bw = cw / bars;
+
+    ctx.fillStyle = npAccentColor;
+    for (var i = 0; i < bars; i++) {
+      var sum = 0;
+      for (var k = 0; k < step; k++) sum += freqData[i * step + k];
+      var v = sum / step / 255;
+      /* 开方压动态范围：不然安静段落全贴底、副歌又全顶满 */
+      v = Math.sqrt(v);
+      /* 右侧衰减，像一条从左往右淡出的光带 */
+      v *= 1 - (i / bars) * 0.5;
+
+      var bh = Math.max(1.5, v * ch * 0.86);
+      ctx.globalAlpha = 0.35 + v * 0.55;
+      ctx.fillRect(i * bw + bw * 0.2, ch - bh, bw * 0.6, bh);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* 从封面里挑一个能当强调色的平均色 */
+  function pickAccent(url) {
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var c = document.createElement('canvas');
+        c.width = 24;
+        c.height = 24;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, 24, 24);
+        var d = ctx.getImageData(0, 0, 24, 24).data;
+
+        var r = 0, g = 0, b = 0, n = 0;
+        for (var i = 0; i < d.length; i += 4) {
+          var lum = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+          /* 过黑过白的不算。它们在模糊背景里贡献的是灰，不是颜色，
+             混进来会把主色拉脏 */
+          if (lum < 34 || lum > 220) continue;
+          r += d[i];
+          g += d[i + 1];
+          b += d[i + 2];
+          n++;
+        }
+        if (!n) return;
+
+        r = Math.round(r / n);
+        g = Math.round(g / n);
+        b = Math.round(b / n);
+
+        /* 往白里提 34%：暗背景上的强调色得够亮才看得见 */
+        r = Math.round(r + (255 - r) * 0.34);
+        g = Math.round(g + (255 - g) * 0.34);
+        b = Math.round(b + (255 - b) * 0.34);
+
+        npAccentColor = 'rgb(' + r + ',' + g + ',' + b + ')';
+        npEl.style.setProperty('--np-accent', npAccentColor);
+      } catch (e) {
+        /* canvas 被污染就守着默认色，不影响播放 */
+      }
+    };
+    img.src = url;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && npOpen) {
+      e.preventDefault();
+      closeNp();
+    }
+  });
 
   function syncRoute() {
     var onMusic = isMusicPage();

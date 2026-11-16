@@ -1184,3 +1184,371 @@ html[data-theme="dark"] .mp-lyric__trans,
     transition: none;
   }
 }
+
+/* ===== 沉浸听歌：全屏唱片 =====
+
+   点播放器的封面进来，整页交给当前这首：同一张封面模糊铺满、压暗、
+   极慢地缩放；中间是封面本体、歌名、进度和控制。竖排歌词从左边挪到
+   右半边，和封面分坐两侧。
+
+   背景必须用当前封面，不能换成固定插画——那样「沉浸」就只是
+   「换了个大页面」，和现在的音乐页没区别。 */
+
+.np {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: #0a0d12;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .42s ease, visibility .42s;
+  /* 从封面里取的主色，进度条和频谱用。取不到就退回这个蓝 */
+  --np-accent: #7aa7e8;
+}
+
+.np.is-on {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 背景：当前封面模糊铺满 */
+.np-bg {
+  position: absolute;
+  inset: -14%;
+  background-position: center;
+  background-size: cover;
+  filter: blur(44px) saturate(1.6) brightness(.52);
+  transform: scale(1.06);
+  transition: background-image .9s ease;
+}
+
+.np.is-on .np-bg {
+  animation: np-drift 28s ease-in-out infinite;
+}
+
+/* 极慢的呼吸。快了会晕，28 秒走完一轮刚好能感觉到「在动」 */
+@keyframes np-drift {
+  0%, 100% { transform: scale(1.06) translate3d(0, 0, 0); }
+  50%      { transform: scale(1.14) translate3d(-1.4%, -1.8%, 0); }
+}
+
+/* 压暗：中间浅、四周深，字才浮得起来 */
+.np-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 95% at 50% 38%, rgba(0, 0, 0, .04), rgba(0, 0, 0, .6) 78%),
+    linear-gradient(180deg, rgba(0, 0, 0, .34) 0%, rgba(0, 0, 0, 0) 22%,
+                    rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, .52) 100%);
+  pointer-events: none;
+}
+
+.np-stage {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 6vw;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .78fr);
+  gap: 5vw;
+  align-items: center;
+}
+
+.np-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 460px;
+}
+
+/* 封面本体。进来时从 0.92 浮上来，和背景的展开错开一点点 */
+.np-cover {
+  position: relative;
+  width: min(44vh, 380px);
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .06);
+  box-shadow: 0 32px 72px -22px rgba(0, 0, 0, .8),
+              0 0 0 1px rgba(255, 255, 255, .07) inset;
+  transform: scale(.92);
+  opacity: 0;
+  transition: transform .52s cubic-bezier(.2, .7, .3, 1) .06s,
+              opacity .4s ease .06s;
+}
+
+.np.is-on .np-cover {
+  transform: none;
+  opacity: 1;
+}
+
+.np-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.np-meta {
+  margin-top: 26px;
+  max-width: 100%;
+}
+
+.np-title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.32;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: .01em;
+  text-shadow: 0 2px 22px rgba(0, 0, 0, .55);
+}
+
+.np-artist {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, .62);
+  letter-spacing: .02em;
+}
+
+/* 进度：3px 的线，20px 的点击热区 */
+.np-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.np-time {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, .5);
+}
+
+.np-time--dur {
+  text-align: right;
+}
+
+.np-bar {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.np-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .18);
+}
+
+.np-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  width: 0;
+  border-radius: 2px;
+  background: var(--np-accent);
+  transition: background .6s ease;
+}
+
+.np-dot {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .14);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.np-bar:hover .np-dot,
+.np-bar.is-drag .np-dot {
+  opacity: 1;
+}
+
+.np-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.np-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, .72);
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, transform .16s ease;
+}
+
+.np-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .09);
+}
+
+.np-btn:active {
+  transform: scale(.93);
+}
+
+.np-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.np-play {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, .94);
+  color: #0a0d12;
+}
+
+.np-play:hover {
+  background: #fff;
+  color: #000;
+}
+
+.np-play svg {
+  width: 26px;
+  height: 26px;
+}
+
+.np-close {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .8);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, transform .3s ease;
+}
+
+.np-close:hover {
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.np-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* 频谱：贴着底边的一条细柱子，用 screen 混合叠在背景上，
+   像光而不是图。暂停时压到几乎看不见。 */
+.np-spec {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 100%;
+  height: 88px;
+  opacity: .46;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity .6s ease;
+}
+
+.np.is-paused .np-spec {
+  opacity: .1;
+}
+
+/* 沉浸模式下歌词挪到右半边。原来贴左 16px 是给文章页留白用的，
+   这里左右都空出来了，放右边才和封面平衡 */
+body.np-on .mp-lyric {
+  left: auto;
+  right: 8vw;
+  z-index: 1002;
+}
+
+body.np-on .mp-lyric__col {
+  font-size: 21px;
+}
+
+/* dock 已经被覆盖层盖住了，这里只是让它在关闭时不要突然跳出来 */
+body.np-on #music-dock {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.np-on {
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .np-stage {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 8vw;
+    max-width: 560px;
+  }
+
+  .np-left {
+    max-width: 100%;
+  }
+
+  .np-cover {
+    width: min(42vh, 280px);
+  }
+
+  .np-title {
+    font-size: 22px;
+  }
+
+  /* 竖排歌词在窄屏会压到封面上，收起来 */
+  body.np-on .mp-lyric {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np.is-on .np-bg {
+    animation: none;
+  }
+
+  .np-cover {
+    transition: none;
+    transform: none;
+    opacity: 1;
+  }
+}
