@@ -200,7 +200,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  max-height: min(62vh, 440px);
+  max-height: min(48vh, 340px);
   border-radius: 12px;
   background: var(--paper-bg);
   border: 1px solid var(--paper-line);
@@ -230,22 +230,8 @@
   border-bottom: 1px solid var(--paper-line);
 }
 
-.l2d-ava {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--bookmark);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-}
-
 .l2d-who {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink);
@@ -564,7 +550,7 @@ body.l2d-on #rightside {
   }
 
   .l2d-paper {
-    max-height: min(56vh, 380px);
+    max-height: min(50vh, 320px);
   }
 
   .l2d-say {

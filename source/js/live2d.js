@@ -428,7 +428,6 @@
       '<div class="l2d-bubble" hidden>' +
       '  <div class="l2d-paper">' +
       '    <div class="l2d-card-head">' +
-      '      <span class="l2d-ava" aria-hidden="true">风</span>' +
       '      <span class="l2d-who">风月酌酒</span>' +
       '      <time class="l2d-clock"></time>' +
       '    </div>' +
@@ -619,8 +618,9 @@
     wrap.appendChild(body);
     el.log.appendChild(wrap);
 
-    /* 只留最近 24 条。二十几轮之后没人往上翻 */
-    while (el.log.children.length > 24) el.log.removeChild(el.log.firstChild);
+    /* 只留最近 8 条。气泡就那么高，堆多了也看不见，
+       反而把滚动距离拉得很长 */
+    while (el.log.children.length > 8) el.log.removeChild(el.log.firstChild);
 
     renderRich(body, text || '');
     if (el.clock) el.clock.textContent = clockText();
