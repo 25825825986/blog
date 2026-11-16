@@ -1217,7 +1217,7 @@ css_prefix: true
 inject:
   head: 
   # 音乐播放器：APlayer + MetingJS
-  - <link rel="stylesheet" href="/css/music.css?v=20261116-mp1">
+  - <link rel="stylesheet" href="/css/music.css?v=20261116-mp2">
   # 背景图预加载：#web_bg 的背景写在 inline style 上，浏览器要解析完样式才发现它，
   # 提前声明可以早点开始下载。但它是纯装饰层，不参与首屏文字渲染，
   # 所以优先级必须给 low —— 用 high 会跟阻塞渲染的 CSS 抢带宽，反而拖慢首次绘制。
@@ -1232,7 +1232,7 @@ inject:
   - <link rel="stylesheet" href="/css/live2d.css?v=20261113w">
   bottom:
   # 全局悬浮播放器，/music/ 页面复用同一个实例
-  - <script defer src="/js/music-player.js?v=20261116-mp1"></script>
+  - <script defer src="/js/music-player.js?v=20261116-mp2"></script>
   # 页面持续打开时，按本地时间自动切换明暗主题
   - <script defer src="/js/auto-theme.js"></script>
   # 星空背景

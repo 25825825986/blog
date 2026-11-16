@@ -313,69 +313,75 @@ body.music-page #article-container {
 
 /* ---------- 纸张与墨色 ---------- */
 
-/* 音乐页单独一套纸感配色。不动全站的 --trans-light，
-   那套半透明是为普通文章页准备的，压在插画上字会糊。 */
+/* 音乐页是一张纸：几乎不透明的暖白、细边、墨色文字。
+   全站的 --trans-light 不动，那是普通文章页的半透明。 */
 body.music-page {
-  --mp-paper: rgba(251, 250, 246, 0.96);
-  --mp-edge: 1px solid rgba(38, 48, 62, 0.07);
-  --mp-lift: 0 1px 1px rgba(31, 45, 61, 0.04),
-             0 18px 44px -20px rgba(31, 45, 61, 0.34);
-  --mp-ink: #1b1f24;
-  --mp-ink-2: #6f7783;
+  --mp-paper: rgba(252, 251, 247, 0.97);
+  --mp-edge: 1px solid rgba(38, 48, 62, 0.09);
+  --mp-ink: #1d2126;
+  --mp-ink-2: #6c7480;
   --mp-ink-3: #9aa1ab;
-  --mp-rule: rgba(38, 48, 62, 0.085);
-  --mp-hover: rgba(35, 40, 48, 0.045);
+  --mp-rule: rgba(38, 48, 62, 0.1);
+  --mp-rule-soft: rgba(38, 48, 62, 0.05);
+  --mp-hover: rgba(35, 40, 48, 0.04);
   --mp-accent: var(--theme-color, #49b1f5);
+  --mp-serif: "Songti SC", "Noto Serif CJK SC", SimSun, serif;
 }
 
 /* ---------- 歌单头部 ---------- */
+
+/* 整页一张纸：hero 收口、目录条夹在两条细线之间、列表收底圆角。
+   阴影打在 .mp 容器上——drop-shadow 只认整张纸的外轮廓，
+   三段接缝不会漏出三条影子。dock 挂在 body 下，不受 filter 影响。 */
 .mp {
   display: flex;
   flex-direction: column;
   gap: 0;
+  filter: drop-shadow(0 22px 44px rgba(26, 36, 50, 0.26));
 }
 
 .mp-hero {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 26px;
-  min-height: 204px;
-  margin-bottom: 18px;
-  padding: 30px 32px;
-  border-radius: 18px;
-  overflow: hidden;
+  gap: 30px;
+  padding: 38px 40px 34px;
   background: var(--mp-paper);
   border: var(--mp-edge);
-  box-shadow: var(--mp-lift);
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
-/* 封面糊成一点色雾就够了。以前 0.42，把整张卡片染成了蓝的 */
+/* 封面颜色只留一丝，把纸和这首曲子连起来；再多就又是一块蓝玻璃 */
 .mp-hero__bg {
   position: absolute;
   inset: -30%;
   background-position: center;
   background-size: cover;
-  filter: blur(64px) saturate(150%);
-  opacity: 0.14;
-  transform: scale(1.12);
+  filter: blur(60px) saturate(130%);
+  opacity: 0.07;
+  transform: scale(1.1);
   pointer-events: none;
 }
 
+/* 封面像贴上去的一张照片：细边、投影，不抢戏 */
 .mp-hero__cover {
   position: relative;
   z-index: 1;
-  flex: 0 0 148px;
-  width: 148px;
-  height: 148px;
-  border-radius: 10px;
+  flex: 0 0 136px;
+  width: 136px;
+  height: 136px;
+  border-radius: 6px;
   overflow: hidden;
   background: var(--mp-hover);
-  box-shadow: 0 10px 26px -12px rgba(24, 32, 44, 0.55);
+  border: 1px solid rgba(38, 48, 62, 0.14);
+  box-shadow: 0 14px 30px -14px rgba(20, 28, 40, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .mp-hero__cover img {
@@ -394,23 +400,21 @@ body.music-page {
 
 .mp-hero__badge {
   position: absolute;
-  left: 9px;
-  bottom: 9px;
+  left: 8px;
+  bottom: 8px;
   z-index: 2;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: rgba(12, 15, 20, 0.5);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 19, 26, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .mp-hero__badge svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   fill: #fff;
 }
 
@@ -419,28 +423,24 @@ body.music-page {
   z-index: 1;
   flex: 1;
   min-width: 0;
-  padding-bottom: 2px;
 }
 
-/* 以前是蓝底白字的胶囊。降成一行字距拉开的小字，安静得多 */
 .mp-hero__kicker {
   display: block;
-  margin-bottom: 10px;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  color: var(--mp-ink-2);
+  margin-bottom: 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  color: var(--mp-ink-3);
 }
 
+/* 站里的书页字感从宋体来——和沉浸页的歌名是同一支笔 */
 .mp-hero__title {
-  margin: 0 0 8px;
-  font-size: 34px;
-  line-height: 1.15;
+  margin: 0;
+  font-family: var(--mp-serif);
+  font-size: 40px;
+  line-height: 1.18;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: 0.05em;
   color: var(--mp-ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -448,8 +448,9 @@ body.music-page {
 }
 
 .mp-hero__desc {
-  margin: 0 0 20px;
+  margin: 12px 0 0;
   font-size: 12.5px;
+  letter-spacing: 0.02em;
   color: var(--mp-ink-2);
   font-variant-numeric: tabular-nums;
 }
@@ -457,28 +458,30 @@ body.music-page {
 .mp-hero__ops {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-top: 28px;
 }
 
 .mp-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  padding: 0 18px;
-  border-radius: 8px;
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 6px;
   border: 1px solid var(--mp-rule);
   background: transparent;
   color: var(--mp-ink);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .mp-btn:hover {
   background: var(--mp-hover);
+  border-color: rgba(38, 48, 62, 0.18);
 }
 
 .mp-btn:active {
@@ -493,27 +496,49 @@ body.music-page {
 
 .mp-btn--primary {
   border-color: transparent;
-  background: #23262b;
-  color: #f8f6f1;
-  box-shadow: 0 6px 18px -8px rgba(20, 24, 30, 0.65);
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+  box-shadow: 0 8px 20px -10px rgba(18, 24, 32, 0.7);
 }
 
 .mp-btn--primary:hover {
-  background: #2f3339;
+  background: #2c313a;
+  border-color: transparent;
+}
+
+/* 期号：这张曲目单有多少首，当成唱片的编号印在右边。
+   空心描边是目录页的页码，不是装饰图；标题压过来也不打架 */
+.mp-hero__folio {
+  position: absolute;
+  right: 38px;
+  top: 44%;
+  transform: translateY(-50%);
+  z-index: 0;
+  font-family: var(--mp-serif);
+  font-size: clamp(96px, 11vw, 150px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(38, 48, 62, 0.045);
+  -webkit-text-stroke: 1px rgba(38, 48, 62, 0.13);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* ---------- 歌单切换器 ---------- */
 
-/* 从彩色胶囊改成目录条：一条细线贯穿，选中的那条压一道墨 */
+/* 目录条：细线夹住的一栏，选中的压一道墨 */
 .mp-tabs {
   display: flex;
-  gap: 22px;
-  padding: 0 22px;
+  gap: 28px;
+  padding: 0 36px;
   overflow-x: auto;
   background: var(--mp-paper);
-  border: var(--mp-edge);
+  border-left: var(--mp-edge);
+  border-right: var(--mp-edge);
+  border-top: 1px solid var(--mp-rule);
   border-bottom: 1px solid var(--mp-rule);
-  border-radius: 18px 18px 0 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -526,12 +551,9 @@ body.music-page {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 40px;
-  margin-bottom: -1px;
-  padding: 0;
+  gap: 6px;
+  height: 46px;
   border: 0;
-  border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   color: var(--mp-ink-2);
@@ -539,7 +561,7 @@ body.music-page {
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: color 0.18s ease;
 }
 
 .mp-tab:hover {
@@ -552,62 +574,67 @@ body.music-page {
 }
 
 .mp-tab.is-active {
-  border-bottom-color: var(--mp-ink);
   background: none;
-  box-shadow: none;
+  box-shadow: inset 0 -2px 0 var(--mp-ink);
   color: var(--mp-ink);
   font-weight: 600;
 }
 
 .mp-tab__count {
-  font-size: 10.5px;
-  opacity: 0.55;
+  font-size: 10px;
+  color: var(--mp-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 歌曲列表 ---------- */
+
+/* 索引式：序号管节奏，歌名靠左，歌手靠右，中间的空是故意的 */
 .mp-panel {
-  border-radius: 0 0 18px 18px;
   background: var(--mp-paper);
   border: var(--mp-edge);
   border-top: 0;
-  box-shadow: var(--mp-lift);
+  border-radius: 0 0 18px 18px;
   overflow: hidden;
   padding: 0;
 }
 
 .mp-rows {
-  padding: 4px 0 8px;
+  padding: 2px 0 10px;
 }
 
 .mp-head,
 .mp-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1.55fr) minmax(0, 0.85fr) 52px;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 30%) 22px;
   align-items: center;
 }
 
 .mp-head {
-  height: 40px;
-  padding: 0 22px;
+  height: 42px;
+  margin: 0 0 4px;
+  padding: 0 36px 0 32px;
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   color: var(--mp-ink-3);
   border-bottom: 1px solid var(--mp-rule);
-  margin-bottom: 0;
+}
+
+.mp-head .mp-c--artist,
+.mp-row .mp-c--artist {
+  text-align: right;
 }
 
 .mp-row {
   position: relative;
-  height: 50px;
+  height: 48px;
   margin: 0;
-  padding: 0 22px;
+  padding: 0 36px 0 30px;
   border-radius: 0;
   font-size: 13.5px;
   color: var(--mp-ink);
   cursor: pointer;
   outline: none;
-  transition: background 0.16s ease;
+  transition: background 0.15s ease;
 }
 
 .mp-row:hover,
@@ -615,6 +642,7 @@ body.music-page {
   background: var(--mp-hover);
 }
 
+/* 正在播只认两样：左侧一道墨线，标题加重 */
 .mp-row.is-current {
   background: var(--mp-hover);
 }
@@ -622,12 +650,16 @@ body.music-page {
 .mp-row.is-current::before {
   content: "";
   position: absolute;
-  left: 14px;
+  left: 16px;
   top: 15px;
   bottom: 15px;
   width: 2px;
   border-radius: 1px;
   background: var(--mp-accent);
+}
+
+.mp-row.is-current .mp-name {
+  font-weight: 600;
 }
 
 .mp-c {
@@ -640,7 +672,7 @@ body.music-page {
 }
 
 .mp-idx {
-  font-size: 11.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--mp-ink-3);
 }
@@ -660,9 +692,19 @@ body.music-page {
   animation: mp-wave 0.9s ease-in-out infinite;
 }
 
-.mp-wave i:nth-child(1) { height: 60%; }
-.mp-wave i:nth-child(2) { height: 100%; animation-delay: 0.18s; }
-.mp-wave i:nth-child(3) { height: 45%; animation-delay: 0.36s; }
+.mp-wave i:nth-child(1) {
+  height: 60%;
+}
+
+.mp-wave i:nth-child(2) {
+  height: 100%;
+  animation-delay: 0.18s;
+}
+
+.mp-wave i:nth-child(3) {
+  height: 45%;
+  animation-delay: 0.36s;
+}
 
 @keyframes mp-wave {
   0%, 100% { transform: scaleY(0.4); }
@@ -682,14 +724,8 @@ body.music-page {
   transform: scaleY(0.45);
 }
 
-/* 正在播放不再用主题蓝刷整行标题，靠左侧那道竖线和加粗认出来 */
-.mp-row.is-current .mp-name {
-  color: var(--mp-ink);
-  font-weight: 600;
-}
-
 .mp-c--title {
-  padding-right: 18px;
+  padding-right: 20px;
 }
 
 .mp-name {
@@ -705,7 +741,7 @@ body.music-page {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 12px;
+  padding-left: 16px;
 }
 
 .mp-c--act {
@@ -716,14 +752,14 @@ body.music-page {
 .mp-c--act svg {
   width: 15px;
   height: 15px;
-  fill: var(--mp-accent);
+  fill: var(--mp-ink);
   opacity: 0;
-  transition: opacity 0.16s ease;
+  transition: opacity 0.15s ease;
 }
 
 .mp-row:hover .mp-c--act svg,
 .mp-row.is-current .mp-c--act svg {
-  opacity: 1;
+  opacity: 0.75;
 }
 
 .mp-empty {
@@ -836,39 +872,51 @@ body.music-page .music-dock__progress {
 
 /* ---------- 暗色模式 ---------- */
 
-/* 只换一套变量。下面所有规则都吃 var()，不用再写一遍 */
+/* 只换一套变量，下面所有规则都吃 var() */
 html[data-theme="dark"] body.music-page,
 html.dark body.music-page,
 body.music-page.dark {
-  --mp-paper: rgba(23, 24, 27, 0.93);
-  --mp-edge: 1px solid rgba(255, 255, 255, 0.07);
-  --mp-lift: 0 1px 1px rgba(0, 0, 0, 0.25),
-             0 18px 44px -20px rgba(0, 0, 0, 0.8);
-  --mp-ink: #e9eaec;
-  --mp-ink-2: #949ba6;
-  --mp-ink-3: #757c87;
-  --mp-rule: rgba(255, 255, 255, 0.08);
-  --mp-hover: rgba(255, 255, 255, 0.055);
+  --mp-paper: rgba(26, 27, 31, 0.96);
+  --mp-edge: 1px solid rgba(255, 255, 255, 0.08);
+  --mp-ink: #e8e9eb;
+  --mp-ink-2: #9aa1ac;
+  --mp-ink-3: #767d88;
+  --mp-rule: rgba(255, 255, 255, 0.09);
+  --mp-rule-soft: rgba(255, 255, 255, 0.05);
+  --mp-hover: rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .mp,
+html.dark .mp,
+.dark .mp {
+  filter: drop-shadow(0 22px 44px rgba(0, 0, 0, 0.55));
 }
 
 html[data-theme="dark"] .mp-hero__bg,
 html.dark .mp-hero__bg,
 .dark .mp-hero__bg {
-  opacity: 0.1;
+  opacity: 0.05;
+}
+
+html[data-theme="dark"] .mp-hero__folio,
+html.dark .mp-hero__folio,
+.dark .mp-hero__folio {
+  color: rgba(255, 255, 255, 0.04);
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.11);
 }
 
 html[data-theme="dark"] .mp-btn--primary,
 html.dark .mp-btn--primary,
 .dark .mp-btn--primary {
-  background: #e9e7e2;
-  color: #16181b;
-  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.8);
+  background: #e8e6e1;
+  color: #17191d;
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.8);
 }
 
 html[data-theme="dark"] .mp-btn--primary:hover,
 html.dark .mp-btn--primary:hover,
 .dark .mp-btn--primary:hover {
-  background: #f4f2ed;
+  background: #f3f1ec;
 }
 
 html[data-theme="dark"] .mp-btn:active,
@@ -880,9 +928,17 @@ html.dark .mp-btn:active,
 html[data-theme="dark"] .mp-hero__cover,
 html.dark .mp-hero__cover,
 .dark .mp-hero__cover {
-  box-shadow: 0 10px 26px -12px rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.8);
 }
 /* ---------- 响应式 ---------- */
+
+@media (max-width: 1100px) {
+  .mp-hero__folio {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   body.music-page #content-inner {
     padding-bottom: 120px;
@@ -908,12 +964,15 @@ html.dark .mp-hero__cover,
   }
 
   .mp-hero__title {
-    font-size: 22px;
+    font-size: 28px;
+    font-family: var(--mp-serif);
+    letter-spacing: 0.05em;
     white-space: normal;
   }
 
   .mp-hero__ops {
     justify-content: center;
+    margin-top: 18px;
   }
 
   .mp-tabs {
@@ -922,23 +981,27 @@ html.dark .mp-hero__cover,
   }
 
   .mp-tab {
-    height: 38px;
+    height: 42px;
     padding: 0;
     font-size: 12.5px;
   }
 
   .mp-head,
   .mp-row {
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-columns: 38px minmax(0, 1fr) 34px;
   }
 
   .mp-head {
-    padding: 0 14px;
+    padding: 0 20px 0 16px;
   }
 
   .mp-row {
     margin: 0;
-    padding: 0 14px;
+    padding: 0 20px 0 16px;
+  }
+
+  .mp-row.is-current::before {
+    left: 6px;
   }
 
   .mp-c--artist {

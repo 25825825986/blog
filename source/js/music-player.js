@@ -1087,7 +1087,7 @@
       '<span class="mp-hero__badge">' + ICONS.note + '</span>',
       '</div>',
       '<div class="mp-hero__info">',
-      '<span class="mp-hero__kicker">网易云音乐 · 歌单</span>',
+      '<span class="mp-hero__kicker">网易云音乐 · 曲目单</span>',
       '<h1 class="mp-hero__title">正在载入歌单…</h1>',
       '<p class="mp-hero__desc">正在连接</p>',
       '<div class="mp-hero__ops">',
@@ -1095,6 +1095,7 @@
       '<button class="mp-btn" type="button" data-act="shuffle">随机播放</button>',
       '</div>',
       '</div>',
+      '<span class="mp-hero__folio" aria-hidden="true"></span>',
       '</header>',
       '<nav class="mp-tabs" aria-label="歌单切换"></nav>',
       '<div class="mp-panel">',
@@ -1154,6 +1155,7 @@
     if (!pageEl) return;
     var titleNode = pageEl.querySelector('.mp-hero__title');
     var descNode = pageEl.querySelector('.mp-hero__desc');
+    var folioNode = pageEl.querySelector('.mp-hero__folio');
     var coverNode = pageEl.querySelector('.mp-hero__cover img');
     var bgNode = pageEl.querySelector('.mp-hero__bg');
 
@@ -1162,8 +1164,9 @@
     /* 标题永远是当前歌单名（载入中也一样），切换时不会闪成「正在载入」 */
     titleNode.textContent = pl.name;
     descNode.textContent = playlist.length
-      ? '共 ' + playlist.length + ' 首 · 数据来自网易云音乐'
+      ? '共收录 ' + playlist.length + ' 首'
       : (loading ? '正在连接网易云音乐' : '还没加载出来，点「播放全部」重试');
+    folioNode.textContent = String(pl.count || playlist.length || '');
 
     /* 封面优先用歌单自己的，列表还没到时也有图可看 */
     var pic = pl.cover || (playlist[0] && playlist[0].pic) || '';
