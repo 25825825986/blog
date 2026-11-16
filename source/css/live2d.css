@@ -292,6 +292,7 @@
   line-height: 1.75;
   color: #22303f;
   word-break: break-word;
+  white-space: pre-wrap;
   max-height: 168px;
   overflow-y: auto;
   overscroll-behavior: contain;
