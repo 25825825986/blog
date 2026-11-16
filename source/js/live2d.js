@@ -21,6 +21,83 @@
     turns: 8
   };
 
+  /* ── 站主身份 ──────────────────────────────────────────────────────
+
+     在 URL 后面加 #l2d-owner=口令 认领一次，之后记在 localStorage。
+     用 hash 不用 query：hash 不会发到服务器，也不会进访问日志。
+     认领完立刻把 hash 抹掉，免得留在浏览器历史里。 */
+  var OWNER_KEY = 'l2d-owner-v1';
+  var ownerToken = '';
+
+  (function readOwner() {
+    var m = String(location.hash || '').match(/l2d-owner=([A-Za-z0-9_-]{8,64})/);
+    if (m) {
+      ownerToken = m[1];
+      try { localStorage.setItem(OWNER_KEY, ownerToken); } catch (e) {}
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      return;
+    }
+    try { ownerToken = localStorage.getItem(OWNER_KEY) || ''; } catch (e) {}
+  })();
+
+  /* 当前上下文，每次都带给后端。她要知道你在哪个页面、在听什么。 */
+  function pageContext() {
+    var song = '', playing = false;
+    var mp = window.__mp;
+    if (mp && mp.audio && mp.audio.src) {
+      playing = !mp.audio.paused;
+      var t = document.querySelector('.music-dock__title');
+      song = t ? String(t.textContent || '').trim() : '';
+    }
+    return { page: location.pathname, song: song, playing: playing };
+  }
+
+  /* 执行一个动作。
+
+     都是浏览器里的事：切主题、控制播放器、开关歌词、把自己挪回去。
+     全部可逆、无副作用，所以不弹确认。服务端不参与，改不了任何文件。 */
+  function runAction(name) {
+    var parts = String(name || '').toLowerCase().split(':');
+    var a = parts[0], b = parts[1];
+
+    if (a === 'theme') {
+      var light = b === 'light';
+      document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+      document.documentElement.classList.toggle('dark', !light);
+      document.body.classList.toggle('dark', !light);
+      try { localStorage.setItem('theme', light ? 'light' : 'dark'); } catch (e) {}
+      return true;
+    }
+
+    if (a === 'music') {
+      var mp = window.__mp;
+      if (!mp || !mp.audio) return false;
+      if (b === 'play') mp.audio.play().catch(function () {});
+      else if (b === 'pause') mp.audio.pause();
+      else if (b === 'next' && mp.control) mp.control('next');
+      return true;
+    }
+
+    if (a === 'lyric') {
+      document.body.classList.toggle('lyric-on', b !== 'off');
+      return true;
+    }
+
+    if (a === 'l2d' && b === 'reset') {
+      try { localStorage.removeItem('l2d-pos-v1'); } catch (e) {}
+      if (typeof setPos === 'function') setPos(0, 0, true);
+      return true;
+    }
+
+    return false;
+  }
+
+  /* 流式渲染时把 [[ACT:xxx]] 截掉，别让标记在气泡里闪一下 */
+  function stripAct(s) {
+    var i = s.indexOf('[[');
+    return i >= 0 ? s.slice(0, i) : s;
+  }
+
   var STATE = {
     booting: false,
     ready: false,
@@ -855,6 +932,27 @@
 
     setTimeout(function () {
       if (STATE.open) return;
+
+      /* 站主：先问后端有没有话要说。后端只会在「隔了一天以上没来」时
+         才给句子，其余时候返回空，那就什么都不说——比套话自然。 */
+      if (ownerToken) {
+        fetch(CFG.api.replace(/\/chat$/, '/greet'), {
+          method: 'POST',
+          headers: { 'X-L2D-Owner': ownerToken }
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          var line = j && String(j.text || '').trim();
+          if (!line || STATE.open || STATE.interacted) return;
+          openBubble();
+          say(line);
+          STATE.history.push({ role: 'assistant', content: line });
+          react('happy');
+          setTimeout(function () {
+            if (!STATE.busy && !STATE.interacted) closeBubble();
+          }, 6200);
+        }).catch(function () {});
+        return;
+      }
+
       openBubble();
       say(contextLine() || pick(GREETINGS));
       react('happy');
@@ -886,10 +984,13 @@
 
     var msgs = STATE.history.concat([{ role: 'user', content: q }]).slice(-CFG.turns * 2);
 
+    var headers = { 'Content-Type': 'application/json' };
+    if (ownerToken) headers['X-L2D-Owner'] = ownerToken;
+
     fetch(CFG.api, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: msgs })
+      headers: headers,
+      body: JSON.stringify({ messages: msgs, context: pageContext() })
     }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) {
@@ -903,10 +1004,27 @@
       el.text.classList.remove('is-typing');
       setBusy(false);
       react('nod');
-      if (full) {
+      /* 回复末尾可能带了动作标记，摘出来执行，再把标记从历史里剔掉 */
+      var act = null;
+      var clean = String(full || '').replace(/\[\[ACT:([a-z:]+)\]\]/gi, function (m, name) {
+        act = name;
+        return '';
+      }).trim();
+
+      if (act) {
+        runAction(act);
+        el.text.textContent = clean;
+      }
+
+      if (clean) {
         STATE.history.push({ role: 'user', content: q });
-        STATE.history.push({ role: 'assistant', content: full });
+        STATE.history.push({ role: 'assistant', content: clean });
         STATE.history = STATE.history.slice(-CFG.turns * 2);
+      } else if (full) {
+        /* 只回了一个动作、没说话，就当她说了一句短话 */
+        STATE.history.push({ role: 'user', content: q });
+        STATE.history.push({ role: 'assistant', content: '（动手了）' });
+        el.text.textContent = '好，弄了';
       } else {
         say('……我走神了，再说一遍？');
       }
@@ -951,7 +1069,7 @@
             var t = d && d.content;
             if (t) {
               full += t;
-              el.text.textContent = full;
+              el.text.textContent = stripAct(full);
               el.text.scrollTop = el.text.scrollHeight;
             }
           } catch (e) {}

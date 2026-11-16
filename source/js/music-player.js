@@ -453,8 +453,17 @@
     audio = new Audio();
     audio.preload = 'none';
     requestAnimationFrame(progressLoop);
-    /* 调试钩子：控制台里能直接 seek、看当前时间和歌词状态 */
-    window.__mp = { audio: audio };
+    /* 调试钩子，也给看板娘用：她能通过它切歌、暂停。
+       control 只暴露几个无副作用的动作，不开放任意函数。 */
+    window.__mp = {
+      audio: audio,
+      control: function (what) {
+        if (!playlist.length) return false;
+        if (what === 'next') { load((index + 1) % playlist.length, true); return true; }
+        if (what === 'prev') { load((index - 1 + playlist.length) % playlist.length, true); return true; }
+        return false;
+      }
+    };
 
     audio.addEventListener('play', function () {
       failCount = 0;
