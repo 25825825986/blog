@@ -402,6 +402,7 @@
     index = (i + playlist.length) % playlist.length;
     var item = playlist[index];
     currentKey = trackKey(item);
+    npPlayingItem = item; npPlayingListName = currentPl().name || "";
     /* 只有「续播」这一条路径会带 resumeAt；点歌、上一首、下一首一律从头放 */
     pendingSeek = (typeof resumeAt === 'number' && resumeAt > 0) ? resumeAt : 0;
     audio.src = item.url;
@@ -616,6 +617,7 @@
         renderRows();
         renderTabs();
         if (!silent) applySavedState();
+        if (npOpen) npSync();
         return playlist;
       })
       .catch(function (err) {
@@ -858,6 +860,7 @@
     }).catch(function () {
       if (lyric.key !== id) return;
       lyric.pure = true;
+      lyric.failed = true;
       lyric.ready = true;
       renderIdle();
     });
@@ -1369,199 +1372,330 @@
     });
   }
 
-  /* ── 沉浸模式 ──────────────────────────────────────────────────────
-
-     全屏唱片。点 dock 的封面进来，Esc 或右上角退出。
-
-     频谱走 Web Audio。createMediaElementSource 会把 audio 的输出从默认
-     路径上摘下来，必须自己接回 destination，否则整首歌静音——这是这个
-     API 最容易踩的坑。它对同一个 audio 元素只能调一次，重复调用抛
-     InvalidStateError，所以拿 actx 是否存在当开关。
-
-     封面取色用 canvas 读像素。网易云的图带 Access-Control-Allow-Origin: *，
-     能读；哪天不带了 getImageData 会抛，退回默认蓝，不影响播放。 */
-
+  /* Immersive v2: this block replaces the previous np UI inside the player closure.
+     The audio element, queue, lyric parser and spectrum graph remain shared. */
   var npEl = null, npBg = null, npImg = null, npTitle = null, npArtist = null;
   var npFill = null, npDot = null, npCur = null, npDur = null, npPlay = null;
-  var npBar = null, npSpec = null;
-  var npOpen = false, npAccentColor = '#7aa7e8', npAccentFor = '';
+  var npBar = null, npSpec = null, npOpen = false;
+  var npAccentColor = '#d5af89', npAccentFor = '';
+  var actx = null, analyser = null, freqData = null, specRaf = 0, corsDropped = false;
+  var npLyrics = null, npTrack = null, npLyricKey = '', npActive = -2;
+  var npQueue = null, npQueueKey = '', npFocusFrom = null, npResize = null;
+  var npCompact = false, npTheme = 'night', npThemeManual = false;
+  var npPlayingItem = null, npPlayingListName = '';
 
-  var actx = null, analyser = null, freqData = null, specRaf = 0;
-  /* CORS 降级只试一次，不然 URL 真过期时会在这儿空转 */
-  var corsDropped = false;
+  function npFollowTheme() {
+    if (npThemeManual) return;
+    npTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'night' : 'day';
+    if (npEl) npSetTheme();
+  }
+  new MutationObserver(npFollowTheme).observe(document.documentElement, {
+    attributes: true, attributeFilter: ['data-theme']
+  });
+  var NP_ICONS = {
+    close: '<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>',
+    sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>',
+    moon: '<svg viewBox="0 0 24 24"><path d="M20.5 13A8.5 8.5 0 0 1 11 3.5 8.5 8.5 0 1 0 20.5 13Z"/></svg>',
+    focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>',
+    queue: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+    volume: '<svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Zm4 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg>',
+    muted: '<svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Zm5 4 6 6m0-6-6 6"/></svg>',
+    disc: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M5.5 12a6.5 6.5 0 0 1 6.5-6.5"/></svg>'
+  };
 
-  var NP_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-    '<path d="M6 6l12 12M18 6L6 18"/></svg>';
+  function npWakeAudio() {
+    if (actx && actx.state === 'suspended') actx.resume().catch(function () {});
+  }
 
   function buildNp() {
     if (npEl) return npEl;
-
-    npEl = document.createElement('div');
-    npEl.className = 'np';
+    npEl = document.createElement('section');
+    npEl.className = 'np np-v2';
     npEl.id = 'np-layer';
+    npEl.setAttribute('role', 'dialog');
+    npEl.setAttribute('aria-modal', 'true');
+    npEl.setAttribute('aria-label', '沉浸听歌');
     npEl.setAttribute('aria-hidden', 'true');
+    npEl.inert = true;
     npEl.innerHTML = [
-      '<div class="np-bg"></div>',
-      '<div class="np-veil"></div>',
-      '<canvas class="np-spec" aria-hidden="true"></canvas>',
-      '<button class="np-close" type="button" aria-label="退出沉浸模式">' + NP_CLOSE + '</button>',
-      '<div class="np-stage">',
-        '<div class="np-left">',
-          '<div class="np-cover"><img alt=""></div>',
-          '<div class="np-meta">',
-            '<h2 class="np-title">未在播放</h2>',
-            '<p class="np-artist"></p>',
-          '</div>',
-          '<div class="np-progress">',
-            '<span class="np-time np-time--cur">0:00</span>',
-            '<div class="np-bar" role="slider" tabindex="0" aria-label="播放进度">',
-              '<span class="np-fill"></span>',
-              '<span class="np-dot"></span>',
-            '</div>',
-            '<span class="np-time np-time--dur">0:00</span>',
-          '</div>',
-          '<div class="np-ctrl">',
-            '<button class="np-btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
-            '<button class="np-btn np-play" type="button" data-act="play" aria-label="播放">' + ICONS.play + '</button>',
-            '<button class="np-btn" type="button" data-act="next" aria-label="下一首">' + ICONS.next + '</button>',
-          '</div>',
+      '<div class="np-bg"></div><div class="np-veil"></div><div class="np-grain"></div>',
+      '<header class="np-header">',
+        '<div class="np-brand">' + NP_ICONS.disc + '<span>风月酌酒</span><i></i><span class="np-brand-sub">此刻，只听音乐</span></div>',
+        '<div class="np-tools">',
+          '<button type="button" class="np-tool" data-np="theme" aria-label="切换清晨配色">' + NP_ICONS.sun + '<span>清晨</span></button>',
+          '<button type="button" class="np-tool" data-np="focus" aria-label="切换纯净模式" aria-pressed="false">' + NP_ICONS.focus + '<span>纯净</span></button>',
+          '<button type="button" class="np-tool np-close" aria-label="收起沉浸模式">' + NP_ICONS.close + '<span>收起</span></button>',
         '</div>',
-      '</div>'
+      '</header>',
+      '<main class="np-stage">',
+        '<section class="np-album">',
+          '<div class="np-art-wrap"><div class="np-art-shadow"></div><div class="np-cover"><img alt="当前专辑封面"></div></div>',
+          '<div class="np-meta"><div class="np-eyebrow"><span class="np-signal"></span><span class="np-state">等待播放</span><span class="np-album-pl"></span></div>',
+          '<h2 class="np-title">载入曲目</h2><p class="np-artist"></p></div>',
+        '</section>',
+        '<section class="np-lyric-side" aria-label="歌词">',
+          '<div class="np-lyric-heading"><span class="np-eyebrow">歌词</span><span class="np-lyric-hint">点一句，听这一段</span></div>',
+          '<div class="np-lyrics"><div class="np-lyric-track"></div></div>',
+          '<div class="np-lyric-foot"><span class="np-follow">随音乐慢慢往下</span><span class="np-lyric-position"></span></div>',
+        '</section>',
+      '</main>',
+      '<footer class="np-console">',
+        '<div class="np-progress"><span class="np-time np-time--cur">0:00</span>',
+        '<div class="np-bar" role="slider" tabindex="0" aria-label="播放进度" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><span class="np-fill"></span><span class="np-dot"></span></div>',
+        '<span class="np-time np-time--dur">0:00</span></div>',
+        '<div class="np-bottom">',
+          '<div class="np-mood"><canvas class="np-spec" aria-hidden="true"></canvas><span class="np-playing-label">等待播放</span></div>',
+          '<div class="np-ctrl"><button class="np-btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
+          '<button class="np-btn np-play" type="button" data-act="play" aria-label="播放">' + ICONS.play + '</button>',
+          '<button class="np-btn" type="button" data-act="next" aria-label="下一首">' + ICONS.next + '</button></div>',
+          '<div class="np-extras"><div class="np-volume"><button class="np-tool np-mute" type="button" aria-label="静音">' + NP_ICONS.volume + '</button>',
+          '<input type="range" min="0" max="1" step="0.01" value="1" aria-label="音量"></div>',
+          '<button type="button" class="np-tool np-list-toggle" aria-label="打开播放列表" aria-expanded="false" aria-controls="np-queue">' + NP_ICONS.queue + '<span>播放列表</span><b class="np-count">0</b></button></div>',
+        '</div>',
+      '</footer>',
+      '<div class="np-drawer-shade" hidden></div>',
+      '<aside class="np-drawer" id="np-queue" aria-label="播放列表" inert>',
+      '<div class="np-drawer-head"><div><span class="np-eyebrow">接下来听</span><h3>播放列表 <span class="np-drawer-count"></span></h3></div>',
+      '<button class="np-tool" data-np="queue-close" type="button" aria-label="关闭播放列表">×</button></div>',
+      '<div class="np-queue-items"></div></aside>'
     ].join('');
-
     document.body.appendChild(npEl);
-
-    npBg = npEl.querySelector('.np-bg');
-    npImg = npEl.querySelector('.np-cover img');
-    npTitle = npEl.querySelector('.np-title');
-    npArtist = npEl.querySelector('.np-artist');
-    npFill = npEl.querySelector('.np-fill');
-    npDot = npEl.querySelector('.np-dot');
-    npCur = npEl.querySelector('.np-time--cur');
-    npDur = npEl.querySelector('.np-time--dur');
-    npPlay = npEl.querySelector('.np-play');
-    npBar = npEl.querySelector('.np-bar');
-    npSpec = npEl.querySelector('.np-spec');
-
+    npBg = npEl.querySelector('.np-bg'); npImg = npEl.querySelector('.np-cover img');
+    npTitle = npEl.querySelector('.np-title'); npArtist = npEl.querySelector('.np-artist');
+    npFill = npEl.querySelector('.np-fill'); npDot = npEl.querySelector('.np-dot');
+    npCur = npEl.querySelector('.np-time--cur'); npDur = npEl.querySelector('.np-time--dur');
+    npPlay = npEl.querySelector('.np-play'); npBar = npEl.querySelector('.np-bar');
+    npSpec = npEl.querySelector('.np-spec'); npLyrics = npEl.querySelector('.np-lyrics');
+    npTrack = npEl.querySelector('.np-lyric-track'); npQueue = npEl.querySelector('.np-queue-items');
     npEl.querySelector('.np-close').addEventListener('click', closeNp);
-
     npEl.querySelector('.np-ctrl').addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-act]');
-      if (!btn) return;
-      var act = btn.getAttribute('data-act');
-      if (act === 'play') togglePlay();
-      else if (act === 'next') next();
-      else if (act === 'prev') prev();
+      var b = e.target.closest('[data-act]'); if (!b) return;
+      npWakeAudio();
+      if (b.dataset.act === 'play') togglePlay();
+      if (b.dataset.act === 'prev') prev();
+      if (b.dataset.act === 'next') next();
     });
-
-    bindNpBar();
+    npEl.querySelector('[data-np="theme"]').addEventListener('click', function () {
+      npThemeManual = true;
+      npTheme = npTheme === 'night' ? 'day' : 'night'; npSetTheme();
+    });
+    npEl.querySelector('[data-np="focus"]').addEventListener('click', function () {
+      npCompact = !npCompact;
+      npEl.classList.toggle('is-focus', npCompact);
+      this.setAttribute('aria-pressed', String(npCompact));
+      this.setAttribute('aria-label', npCompact ? '退出纯净模式' : '切换纯净模式');
+      this.querySelector('span').textContent = npCompact ? '还原' : '纯净';
+      npActive = -2; npTick();
+    });
+    npEl.querySelector('.np-list-toggle').addEventListener('click', function () { npToggleQueue(!npEl.classList.contains('queue-on')); });
+    npEl.querySelector('[data-np="queue-close"]').addEventListener('click', function () { npToggleQueue(false); });
+    npEl.querySelector('.np-drawer-shade').addEventListener('click', function () { npToggleQueue(false); });
+    npQueue.addEventListener('click', function (e) {
+      var row = e.target.closest('[data-track]'); if (!row) return;
+      npWakeAudio(); load(Number(row.dataset.track), true); npToggleQueue(false); npPlay.focus();
+    });
+    npTrack.addEventListener('click', function (e) {
+      var line = e.target.closest('[data-time]'); if (!line || !audio) return;
+      npWakeAudio();
+      if (audio.readyState < 1) pendingSeek = Number(line.dataset.time);
+      else audio.currentTime = Number(line.dataset.time);
+      audio.play().catch(function () {}); npActive = -2; npTick();
+    });
+    npEl.querySelector('.np-volume input').value = audio ? audio.volume : 1;
+    npEl.querySelector('.np-volume input').addEventListener('input', function () {
+      if (!audio) return; audio.volume = Number(this.value); audio.muted = false; npVolumeIcon();
+    });
+    npEl.querySelector('.np-mute').addEventListener('click', function () {
+      if (!audio) return; audio.muted = !audio.muted; npVolumeIcon();
+    });
+    if (audio) audio.addEventListener('volumechange', npVolumeIcon);
+    npResize = new ResizeObserver(function () { npActive = -2; if (npOpen) npTick(); });
+    npResize.observe(npLyrics);
+    bindNpBar(); npSetTheme();
     return npEl;
   }
 
-  /* 沉浸页自己的进度条。dock 那条太细，全屏下够不着，
-     这里热区给到 20px，按下就能拖 */
-  function bindNpBar() {
-    var dragging = false;
-
-    function seekTo(clientX) {
-      var dur = audio && isFinite(audio.duration) ? audio.duration : 0;
-      if (!dur) return;
-      var r = npBar.getBoundingClientRect();
-      if (!r.width) return;
-      var ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-      audio.currentTime = ratio * dur;
-      npTick();
-    }
-
-    npBar.addEventListener('pointerdown', function (e) {
-      dragging = true;
-      npBar.classList.add('is-drag');
-      try { npBar.setPointerCapture(e.pointerId); } catch (err) {}
-      seekTo(e.clientX);
+  function npSetTheme() {
+    npEl.dataset.mood = npTheme;
+    var b = npEl.querySelector('[data-np="theme"]');
+    b.innerHTML = (npTheme === 'night' ? NP_ICONS.sun : NP_ICONS.moon) + '<span>' + (npTheme === 'night' ? '清晨' : '暖夜') + '</span>';
+    b.setAttribute('aria-label', npTheme === 'night' ? '切换清晨配色' : '切换暖夜配色');
+  }
+  function npVolumeIcon() {
+    if (!npEl || !audio) return;
+    var b = npEl.querySelector('.np-mute');
+    var muted = audio.muted || !audio.volume;
+    b.innerHTML = muted ? NP_ICONS.muted : NP_ICONS.volume;
+    b.setAttribute('aria-label', muted ? '取消静音' : '静音');
+    npEl.querySelector('.np-volume input').value = audio.muted ? 0 : audio.volume;
+  }
+  function npToggleQueue(on) {
+    npEl.classList.toggle('queue-on', on);
+    npEl.querySelector('.np-drawer').inert = !on;
+    npEl.querySelector('.np-drawer-shade').hidden = !on;
+    npEl.querySelector('.np-list-toggle').setAttribute('aria-expanded', String(on));
+    if (on) {
+      npRenderQueue(); npEl.querySelector('[data-np="queue-close"]').focus();
+      var current = npQueue.querySelector('.is-current'); if (current) current.scrollIntoView({ block: 'nearest' });
+    } else npEl.querySelector('.np-list-toggle').focus();
+  }
+  function npRenderQueue() {
+    var key = playlist.map(trackKey).join('\n') + ':' + index;
+    if (key === npQueueKey) return; npQueueKey = key;
+    npQueue.replaceChildren();
+    playlist.forEach(function (p, i) {
+      var b = document.createElement('button'); b.type = 'button';
+      b.className = 'np-queue-item' + (i === index ? ' is-current' : ''); b.dataset.track = i;
+      var n = document.createElement('span'); n.className = 'np-queue-num'; n.textContent = String(i + 1).padStart(2, '0');
+      var content = document.createElement('span'); content.className = 'np-queue-title';
+      var title = document.createElement('strong'); title.textContent = p.title;
+      var author = document.createElement('small'); author.textContent = p.author;
+      content.append(title, author); b.append(n, content);
+      if (i === index) { var state = document.createElement('span'); state.className = 'np-queue-current'; state.textContent = '当前'; b.appendChild(state); }
+      npQueue.appendChild(b);
     });
-
-    npBar.addEventListener('pointermove', function (e) {
-      if (dragging) seekTo(e.clientX);
-    });
-
-    function stop() {
-      dragging = false;
-      npBar.classList.remove('is-drag');
-    }
-
-    npBar.addEventListener('pointerup', stop);
-    npBar.addEventListener('pointercancel', stop);
+    npEl.querySelector('.np-count').textContent = playlist.length;
+    npEl.querySelector('.np-drawer-count').textContent = playlist.length;
   }
 
+  function bindNpBar() {
+    var dragging = false;
+    function seekTo(x) {
+      var dur = audio && isFinite(audio.duration) ? audio.duration : 0; if (!dur) return;
+      var r = npBar.getBoundingClientRect(); if (!r.width) return;
+      audio.currentTime = Math.max(0, Math.min(1, (x - r.left) / r.width)) * dur; npTick();
+    }
+    npBar.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return; dragging = true; npBar.classList.add('is-drag');
+      try { npBar.setPointerCapture(e.pointerId); } catch (err) {} seekTo(e.clientX);
+    });
+    npBar.addEventListener('pointermove', function (e) { if (dragging) seekTo(e.clientX); });
+    function stop() { dragging = false; npBar.classList.remove('is-drag'); }
+    npBar.addEventListener('pointerup', stop); npBar.addEventListener('pointercancel', stop);
+    npBar.addEventListener('keydown', function (e) {
+      if (!audio || !isFinite(audio.duration)) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault(); e.stopPropagation();
+        audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + (e.key === 'ArrowRight' ? 5 : -5)));
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault(); audio.currentTime = e.key === 'Home' ? 0 : Math.max(0, audio.duration - .1);
+      }
+      npTick();
+    });
+  }
   function openNp() {
     if (npOpen) return;
-    buildNp();
-    npSync();
-    npOpen = true;
-    document.body.classList.add('np-on');
-    npEl.classList.add('is-on');
-    npEl.setAttribute('aria-hidden', 'false');
-
-    /* AudioContext 要在用户手势里 resume。这里正好是点击进来的 */
+    npFollowTheme();
+    npFocusFrom = document.activeElement; buildNp(); npOpen = true;
+    npEl.inert = false; npEl.setAttribute('aria-hidden', 'false');
+    npEl.scrollLeft = 0; npEl.scrollTop = 0;
+    document.body.classList.add('np-on'); npEl.classList.add('is-on');
+    if (audio && !audio.src && playlist[index]) {
+      load(index, false, pendingSeek);
+      audio.preload = 'metadata';
+      audio.load();
+    }
+    /* Opening the overlay never calls play: autoplay and the shared player stay intact. */
+    npSync(); npPlay.focus({ preventScroll: true });
     if (initSpectrum()) {
       if (actx.state === 'suspended') actx.resume().catch(function () {});
       if (!specRaf) specRaf = requestAnimationFrame(specLoop);
     }
   }
-
   function closeNp() {
     if (!npOpen) return;
-    npOpen = false;
-    document.body.classList.remove('np-on');
-    npEl.classList.remove('is-on');
+    npToggleQueue(false); npOpen = false; npEl.inert = true;
+    document.body.classList.remove('np-on'); npEl.classList.remove('is-on');
     npEl.setAttribute('aria-hidden', 'true');
     if (specRaf) { cancelAnimationFrame(specRaf); specRaf = 0; }
+    if (npFocusFrom && npFocusFrom.isConnected) npFocusFrom.focus({ preventScroll: true });
   }
-
   function npSync() {
     if (!npEl) return;
-    var item = playlist[index] || {};
-    var pic = item.pic || '';
-
-    npTitle.textContent = item.title || '未在播放';
-    npArtist.textContent = item.author || '';
-
+    var p = audio && audio.src && npPlayingItem ? npPlayingItem : playlist[index];
+    var pic = p ? p.pic : (coverImg && coverImg.getAttribute('src') || '');
+    npTitle.textContent = p ? p.title : (titleEl.textContent || '未在播放');
+    npArtist.textContent = p ? p.author : artistEl.textContent;
+    npEl.querySelector('.np-album-pl').textContent = audio && audio.src && npPlayingItem ? npPlayingListName : (currentPl().name || '');
     if (pic) {
-      npImg.src = pic;
-      npImg.style.visibility = '';
-      npBg.style.backgroundImage = 'url("' + pic + '")';
-    } else {
-      npImg.removeAttribute('src');
-      npImg.style.visibility = 'hidden';
-      npBg.style.backgroundImage = '';
-    }
-
-    if (pic && pic !== npAccentFor) {
+      if (npImg.getAttribute('src') !== pic) {
+        npImg.src = pic; npImg.style.visibility = '';
+        npBg.style.backgroundImage = 'url("' + pic.replace(/["\\\n\r]/g, '') + '")';
+      }
+    } else { npImg.removeAttribute('src'); npImg.style.visibility = 'hidden'; npBg.style.backgroundImage = ''; }
+    if (pic !== npAccentFor) {
       npAccentFor = pic;
-      pickAccent(pic);
+      npAccentColor = '#d5af89'; npEl.style.setProperty('--np-accent', npAccentColor);
+      if (pic) pickAccent(pic);
     }
-
-    npTick();
-    npSyncPlayIcon();
+    npRenderQueue(); npTick(); npSyncPlayIcon();
   }
-
   function npTick() {
-    if (!npEl) return;
+    if (!npEl || !npOpen) return;
     var dur = audio && isFinite(audio.duration) ? audio.duration : 0;
-    var cur = audio ? audio.currentTime : 0;
-    var pct = dur ? Math.min(100, (cur / dur) * 100) : 0;
-    npFill.style.width = pct + '%';
-    npDot.style.left = pct + '%';
-    npCur.textContent = fmtTime(cur);
-    npDur.textContent = fmtTime(dur);
+    var cur = audio ? audio.currentTime : 0, pct = dur ? Math.min(100, cur / dur * 100) : 0;
+    npFill.style.width = pct + '%'; npDot.style.left = pct + '%';
+    npCur.textContent = fmtTime(cur); npDur.textContent = fmtTime(dur);
+    var sec = Math.floor(cur);
+    if (npBar.getAttribute('aria-valuenow') !== String(sec) ||
+        npBar.getAttribute('aria-valuemax') !== String(Math.floor(dur))) {
+      npBar.setAttribute('aria-valuemax', String(Math.floor(dur)));
+      npBar.setAttribute('aria-valuenow', String(sec));
+      npBar.setAttribute('aria-valuetext', fmtTime(cur) + ' / ' + fmtTime(dur));
+    }
+    npSyncLyrics(cur);
   }
-
   function npSyncPlayIcon() {
     if (!npEl) return;
-    var playing = !!(audio && !audio.paused);
-    npEl.classList.toggle('is-paused', !playing);
-    npPlay.innerHTML = playing ? ICONS.pause : ICONS.play;
-    npPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+    var on = !!(audio && !audio.paused); npEl.classList.toggle('is-paused', !on);
+    npPlay.innerHTML = on ? ICONS.pause : ICONS.play; npPlay.setAttribute('aria-label', on ? '暂停' : '播放');
+    npEl.querySelector('.np-state').textContent = on ? '正在播放' : '暂停片刻';
+    npEl.querySelector('.np-playing-label').textContent = on ? '正在聆听' : '空格，继续听';
+  }
+  function npSyncLyrics(t) {
+    var key = lyric.key + ':' + !!lyric.ready + ':' + lyric.lines.length + ':' + !!lyric.failed;
+    if (key !== npLyricKey) {
+      npLyricKey = key; npActive = -2; npTrack.replaceChildren();
+      if (!lyric.ready || !lyric.lines.length || lyric.pure) {
+        var empty = document.createElement('div'); empty.className = 'np-lyric-empty';
+        var title = document.createElement('strong'), subtitle = document.createElement('span');
+        title.textContent = !lyric.ready ? '歌词正慢慢到来' : lyric.failed ? '暂时没取到歌词' : '把时间交给旋律';
+        subtitle.textContent = !lyric.ready ? '正在载入' : lyric.failed ? '播放不受影响' : '纯音乐';
+        empty.append(title, subtitle); npTrack.appendChild(empty);
+        npEl.classList.add('no-lyrics'); npEl.querySelector('.np-lyric-position').textContent = ''; return;
+      }
+      npEl.classList.remove('no-lyrics');
+      lyric.lines.forEach(function (line, i) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'np-line'; b.dataset.time = line.t;
+        var text = document.createElement('span'); text.textContent = line.text; b.appendChild(text);
+        var tr = transAt(line.t);
+        if (tr) { var small = document.createElement('small'); small.textContent = tr; b.appendChild(small); }
+        npTrack.appendChild(b);
+      });
+    }
+    if (!lyric.ready || !lyric.lines.length || lyric.pure) return;
+    var lo = 0, hi = lyric.lines.length - 1, idx = -1;
+    while (lo <= hi) { var mid = (lo + hi) >> 1; if (lyric.lines[mid].t <= t) { idx = mid; lo = mid + 1; } else hi = mid - 1; }
+    if (idx === npActive) return;
+    var old = npActive; npActive = idx;
+    var active = Math.max(0, idx), children = npTrack.children;
+    for (var i = 0; i < children.length; i++) {
+      children[i].classList.toggle('is-active', i === idx);
+      children[i].classList.toggle('is-near', Math.abs(i - active) === 1);
+      children[i].classList.toggle('is-far', Math.abs(i - active) > 1);
+      children[i].tabIndex = Math.abs(i - active) <= 1 ? 0 : -1;
+      if (i === idx) children[i].setAttribute('aria-current', 'true'); else children[i].removeAttribute('aria-current');
+    }
+    var target = children[active]; if (!target) return;
+    /* Limit the scroll to the remaining phrase time. Seeking is an immediate reposition.
+       Geometry doesn't change with active state, avoiding a frame-to-frame layout jump. */
+    var remaining = idx >= 0 && lyric.lines[idx + 1] ? (lyric.lines[idx + 1].t - t) * 1000 : 5000;
+    var ms = old >= 0 && idx === old + 1 ? Math.max(70, Math.min(460, remaining * .35)) : 0;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) ms = 0;
+    npTrack.style.transitionDuration = ms + 'ms';
+    npTrack.style.transform = 'translate3d(0,' + Math.round(npLyrics.clientHeight * .45 - target.offsetTop - target.offsetHeight / 2) + 'px,0)';
+    npEl.querySelector('.np-lyric-position').textContent = String(active + 1).padStart(2, '0') + ' / ' + String(lyric.lines.length).padStart(2, '0');
+    npEl.querySelector('.np-follow').textContent = idx < 0 ? '前奏，把呼吸放慢' : '随音乐慢慢往下';
   }
 
   function initSpectrum() {
@@ -1619,7 +1753,7 @@
     var step = Math.max(1, Math.floor(span / bars));
     var bw = cw / bars;
 
-    ctx.fillStyle = npAccentColor;
+    ctx.fillStyle = npTheme === 'day' ? '#897153' : npAccentColor;
     for (var i = 0; i < bars; i++) {
       var sum = 0;
       for (var k = 0; k < step; k++) sum += freqData[i * step + k];
@@ -1641,6 +1775,7 @@
     var img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = function () {
+      if (url !== npAccentFor) return;
       try {
         var c = document.createElement('canvas');
         c.width = 24;
@@ -1680,30 +1815,30 @@
     img.src = url;
   }
 
+
+
   document.addEventListener('keydown', function (e) {
     if (!npOpen) return;
-
     if (e.key === 'Escape') {
       e.preventDefault();
-      closeNp();
+      if (npEl.classList.contains('queue-on')) npToggleQueue(false); else closeNp(); return;
+    }
+    if (e.key === 'Tab') {
+      var region = npEl.classList.contains('queue-on') ? npEl.querySelector('.np-drawer') : npEl;
+      var list = Array.from(region.querySelectorAll('button:not([disabled]), input, [tabindex="0"]')).filter(function (n) { return n.tabIndex >= 0 && n.offsetParent && !n.closest('[inert]'); });
+      if (!list.length) return;
+      if (e.shiftKey && document.activeElement === list[0]) { e.preventDefault(); list[list.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === list[list.length - 1]) { e.preventDefault(); list[0].focus(); }
       return;
     }
-
-    /* 空格播放/暂停，左右切歌。沉浸页没有输入框，
-       不用担心把别人正在打的空格吞掉 */
-    var tag = (e.target && e.target.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-
-    if (e.key === ' ' || e.code === 'Space') {
-      e.preventDefault();
-      togglePlay();
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      next();
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      prev();
-    }
+    var tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable || e.target === npBar) return;
+    if (e.key === ' ' && tag === 'BUTTON') return; // native activation must not toggle twice
+    if (e.repeat) return;
+    npWakeAudio();
+    if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
   });
 
   function syncRoute() {
