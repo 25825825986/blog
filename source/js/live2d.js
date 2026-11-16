@@ -52,16 +52,16 @@
     return { page: location.pathname, song: song, playing: playing };
   }
 
-  /* 执行一个动作。
+  /* 执行一个工具调用。
 
-     都是浏览器里的事：切主题、控制播放器、开关歌词、把自己挪回去。
-     全部可逆、无副作用，所以不弹确认。服务端不参与，改不了任何文件。 */
-  function runAction(name) {
-    var parts = String(name || '').toLowerCase().split(':');
-    var a = parts[0], b = parts[1];
+     原生 function calling：后端把模型返回的 tool_calls 翻译成
+     SSE 里的 event: act，这里只负责根据 name + args 做事。
+     全部是浏览器里的可逆操作，服务端不执行任何东西。 */
+  function runTool(name, args) {
+    args = args || {};
 
-    if (a === 'theme') {
-      var light = b === 'light';
+    if (name === 'set_theme') {
+      var light = args.mode === 'light';
       document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
       document.documentElement.classList.toggle('dark', !light);
       document.body.classList.toggle('dark', !light);
@@ -69,21 +69,21 @@
       return true;
     }
 
-    if (a === 'music') {
+    if (name === 'control_music') {
       var mp = window.__mp;
       if (!mp || !mp.audio) return false;
-      if (b === 'play') mp.audio.play().catch(function () {});
-      else if (b === 'pause') mp.audio.pause();
-      else if (b === 'next' && mp.control) mp.control('next');
+      if (args.action === 'play') mp.audio.play().catch(function () {});
+      else if (args.action === 'pause') mp.audio.pause();
+      else if (args.action === 'next' && mp.control) mp.control('next');
       return true;
     }
 
-    if (a === 'lyric') {
-      document.body.classList.toggle('lyric-on', b !== 'off');
+    if (name === 'toggle_lyric') {
+      document.body.classList.toggle('lyric-on', args.show !== false);
       return true;
     }
 
-    if (a === 'l2d' && b === 'reset') {
+    if (name === 'reset_position') {
       try { localStorage.removeItem('l2d-pos-v1'); } catch (e) {}
       if (typeof setPos === 'function') setPos(0, 0, true);
       return true;
@@ -1000,31 +1000,29 @@
         });
       }
       return readStream(res);
-    }).then(function (full) {
+    }).then(function (out) {
+      var text = String((out && out.text) || '');
+      var acts = (out && out.acts) || 0;
+
       el.text.classList.remove('is-typing');
       setBusy(false);
       react('nod');
-      /* 回复末尾可能带了动作标记，摘出来执行，再把标记从历史里剔掉 */
-      var act = null;
-      var clean = String(full || '').replace(/\[\[ACT:([a-z:]+)\]\]/gi, function (m, name) {
-        act = name;
-        return '';
-      }).trim();
 
-      if (act) {
-        runAction(act);
-        el.text.textContent = clean;
-      }
+      /* 工具已经在前端执行完了（readStream 里读 event: act）。
+         这里只处理文字。偶尔模型还会写 [[ACT:]] 旧标记，剔掉就行。 */
+      var clean = text.replace(/\[\[ACT:[a-z:]+\]\]/gi, '').trim();
 
       if (clean) {
+        el.text.textContent = clean;
         STATE.history.push({ role: 'user', content: q });
         STATE.history.push({ role: 'assistant', content: clean });
         STATE.history = STATE.history.slice(-CFG.turns * 2);
-      } else if (full) {
-        /* 只回了一个动作、没说话，就当她说了一句短话 */
-        STATE.history.push({ role: 'user', content: q });
-        STATE.history.push({ role: 'assistant', content: '（动手了）' });
+      } else if (acts > 0) {
+        /* 只调了工具、一句没说——气泡不能空着 */
         el.text.textContent = '好，弄了';
+        STATE.history.push({ role: 'user', content: q });
+        STATE.history.push({ role: 'assistant', content: '好，弄了' });
+        STATE.history = STATE.history.slice(-CFG.turns * 2);
       } else {
         say('……我走神了，再说一遍？');
       }
@@ -1039,7 +1037,7 @@
     if (!res.body || !res.body.getReader) {
       return res.text().then(function (t) {
         el.text.textContent = t;
-        return t;
+        return { text: t, acts: 0 };
       });
     }
 
@@ -1047,21 +1045,40 @@
     var decoder = new TextDecoder();
     var buf = '';
     var full = '';
+    var evt = '';          /* 当前 SSE 事件名，遇到空行重置 */
+    var acted = 0;         /* 这轮执行了几个工具 */
 
     function pump() {
       return reader.read().then(function (r) {
-        if (r.done) return full;
+        if (r.done) return { text: full, acts: acted };
         buf += decoder.decode(r.value, { stream: true });
 
         var idx;
         while ((idx = buf.indexOf('\n')) >= 0) {
           var line = buf.slice(0, idx).replace(/\r$/, '');
           buf = buf.slice(idx + 1);
-          if (!line || line.charAt(0) === ':') continue;
+
+          if (!line) { evt = ''; continue; }
+          if (line.charAt(0) === ':') continue;
+
+          /* 事件名。后端推工具调用时是 event: act + data: {...} */
+          if (line.indexOf('event:') === 0) {
+            evt = line.slice(6).trim();
+            continue;
+          }
+
           if (line.indexOf('data:') !== 0) continue;
 
           var payload = line.slice(5).trim();
           if (!payload || payload === '[DONE]') continue;
+
+          if (evt === 'act') {
+            try {
+              var o = JSON.parse(payload);
+              if (o && o.name && runTool(o.name, o.args)) acted++;
+            } catch (e) {}
+            continue;
+          }
 
           try {
             var j = JSON.parse(payload);
