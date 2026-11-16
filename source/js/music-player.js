@@ -704,6 +704,39 @@
     return { meta: meta, lines: lines };
   }
 
+  /* 一两个字的短句并回下一句。
+
+     有的 LRC 把「当阳光洒落在我们身旁」拆成「当」+「阳光洒落…」，
+     「当」只占 0.31 秒（《我们》01:00.64）。滚动动画要 600ms，
+     根本跑不完——字还没滚到位就被下一句顶掉，两列一起弹回原位，
+     看着就是闪一下。
+
+     这种短句其实是下一句的开头，并回去就正常了。判据：两个字以内
+     且停留不到 0.9 秒。连续几个短句会一路并进后面第一个长句。
+
+     只并到下一句，不并到上一句：「当」是「当阳光洒落…」的第一个字，
+     挂到上一句末尾就变成「…最初的模样当」，反了。 */
+  function mergeTinyLines(rows) {
+    if (rows.length < 2) return rows;
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var next = rows[i + 1];
+      var life = next ? (next.t - row.t) * 1000 : 1e9;
+      var chars = row.text.replace(/\s/g, '').length;
+      if (next && chars <= 2 && life < 900 &&
+          next.text.length + row.text.length <= 24) {
+        /* 用被并那句的时间，字幕才和歌声对得上——「当」一出口，
+           整句就该出来，而不是等 0.31 秒后才补上 */
+        next.text = row.text + next.text;
+        next.t = row.t;
+        continue;
+      }
+      out.push(row);
+    }
+    return out;
+  }
+
   /* 两种形态都算纯音乐：
      一是歌词直接写着「纯音乐，请欣赏」；
      二是整篇只有一串 ♪，一个字都没有。 */
@@ -796,7 +829,7 @@
     fetchLyric(0, id).then(function (d) {
       if (lyric.key !== id) return;   /* 已经切歌，这批数据丢掉 */
       var main = splitCredits(parseLrc(d && d.lrc));
-      lyric.lines = main.lines;
+      lyric.lines = mergeTinyLines(main.lines);
       lyric.meta = main.meta;
       lyric.trans = parseLrc(d && d.tlyric);
       lyric.pure = looksPure(main.lines);
@@ -820,9 +853,7 @@
       var next = lyric.lines[idx + 1];
       /* pjax 回来时把进度区间一起还原，否则高亮要等到下一句才接上 */
       paintLyric(line.text, next ? next.text : '', transAt(line.t), true,
-                 lyricIdx >= 0 ? line.t : 0,
-                 0,
-                 false);
+                 0, 0, false);
       /* pjax 回来时重画，前奏的淡色状态也要一起还原 */
       lyricEl.classList.toggle('is-pending', lyricIdx < 0);
       return;
@@ -868,7 +899,10 @@
     /* 只有「紧接着的下一句」才走滚动动画。seek 跳转、切歌直接换。 */
     var animate = prevIdx >= 0 && idx === prevIdx + 1;
 
-    paintLyric(line.text, next ? next.text : '', transAt(line.t), false, 0, 0, animate);
+    /* 这句能停留多久，交给绘制层决定用哪种动画。用时间戳算，
+       不用「上次绘制到现在」——那个值会被 seek、暂停带偏。 */
+    var life = next ? Math.max(0, (next.t - line.t) * 1000) : 1e9;
+    paintLyric(line.text, next ? next.text : '', transAt(line.t), false, life, 0, animate);
   }
 
   function transAt(t) {
@@ -913,7 +947,7 @@
      而以前是直接 settle 硬切——字“叭”地一下变了，看着就是闪。
      这里改成：字立即换掉，当前句从淡到亮走 180ms。
      视觉上是文字浮现，不是闪烁。 */
-  function fadeSwap(c0, c1, cur, next) {
+  function fadeSwap(c0, c1, cur, next, life) {
     /* 先把位置一次性归零（transform 无过渡），再把字换掉 */
     c0.style.transition = 'none';
     c1.style.transition = 'none';
@@ -933,13 +967,16 @@
        连续切换时浏览器会把这几步合并成一次样式计算，起点根本落不下地
        （实测 opacity 一直是 1，等于硬切）。WAAPI 不受这个影响。 */
     if (c1.__fade) { try { c1.__fade.cancel(); } catch (e) {} }
+    /* 能活多久决定淡入多快：只剩 300ms 还淡 180ms，一半时间都是糊的。
+       下限 90ms，再快就等于硬切，不如直接亮。 */
+    var dur = Math.min(180, Math.max(90, Math.round((life || 0) * 0.22)));
     c1.__fade = c1.animate(
       [{ opacity: 0.2 }, { opacity: 1 }],
-      { duration: 180, easing: 'ease' }
+      { duration: dur, easing: 'ease' }
     );
   }
 
-  function paintLyric(cur, next, trans, instant, t0, t1, animate) {
+  function paintLyric(cur, next, trans, instant, life, t1, animate) {
     if (!lyricEl || !lyricColEls.length || !lyricTransEl) return;
     var now = Date.now();
     var gap = now - lyricPaintedAt;
@@ -986,10 +1023,15 @@
     /* seek 跳转、切歌、pjax 回来：直接摆好，不走动画 */
     if (!animate || instant) { settle(); return; }
 
-    /* 上一句刚换完没多久（滚动动画都跑不完）——改成快速淡切。
-       阈值取 1.4s：滚动动画本身 600ms，加上人眼读完一句的时间，
-       低于这个值的句子让它“滚”只会糊成一团。 */
-    if (gap < 1400) { fadeSwap(c0, c1, cur, next); return; }
+    /* 这句活不到 1.2 秒，就别滚了。
+
+       滚动动画 600ms，跑完只剩两百毫秒就换下一句；更短的话中途
+       被打断，两列从半路弹回原位再换字——那一下就是「闪」。
+       短句一律走淡切，淡入时长再按能活多久缩。
+
+       gap 那个条件留着做兜底：上一轮动画还没跑完新句就来了，
+       先把它打断总比两段动画叠在一起强。 */
+    if (life < 1200 || gap < 700) { fadeSwap(c0, c1, cur, next, life); return; }
 
     /* 上一轮还没跑完就被打断，先把残留的类清掉再起新的 */
     c0.classList.remove('is-fresh');
