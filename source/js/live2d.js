@@ -98,6 +98,8 @@
     return i >= 0 ? s.slice(0, i) : s;
   }
 
+  var LOG_KEY = 'l2d-log-v1';
+
   var STATE = {
     booting: false,
     ready: false,
@@ -107,6 +109,9 @@
     interacted: false,
     history: []
   };
+
+  /* 刷新后还留着上次聊到哪。关掉标签页就清 */
+  STATE.history = loadLog();
 
   /* 被摸头的反应。轻一点，别一惊一乍：她只是被人顺手摸了一下。 */
   var PATS = [
@@ -421,9 +426,13 @@
       '<div class="l2d-head" role="button" aria-label="摸摸头"></div>' +
       '<div class="l2d-hit" role="button" tabindex="0" aria-label="跟看板娘说话"></div>' +
       '<div class="l2d-bubble" hidden>' +
-      '  <div class="l2d-cloud" aria-hidden="true"><i></i><i></i><span class="l2d-tail"></span></div>' +
-      '  <div class="l2d-inner">' +
-      '    <p class="l2d-text"></p>' +
+      '  <div class="l2d-paper">' +
+      '    <div class="l2d-card-head">' +
+      '      <span class="l2d-ava" aria-hidden="true">风</span>' +
+      '      <span class="l2d-who">风月酌酒</span>' +
+      '      <time class="l2d-clock"></time>' +
+      '    </div>' +
+      '    <div class="l2d-log" role="log" aria-live="polite"></div>' +
       '    <form class="l2d-form">' +
       '      <input class="l2d-input" type="text" maxlength="120" autocomplete="off" ' +
       '             enterkeyhint="send" placeholder="跟她说点什么…" aria-label="对看板娘说的话">' +
@@ -441,7 +450,9 @@
     el.head = root.querySelector('.l2d-head');
     el.hit = root.querySelector('.l2d-hit');
     el.bubble = root.querySelector('.l2d-bubble');
-    el.text = root.querySelector('.l2d-text');
+    el.log = root.querySelector('.l2d-log');
+    el.clock = root.querySelector('.l2d-clock');
+    el.live = null;          /* 正在流式写入的那个 .l2d-say */
     el.form = root.querySelector('.l2d-form');
     el.input = root.querySelector('.l2d-input');
     el.send = root.querySelector('.l2d-send');
@@ -498,6 +509,7 @@
     el.bubble.hidden = false;
     requestAnimationFrame(function () {
       el.bubble.classList.add('is-open');
+      scrollLog();
     });
   }
 
@@ -509,10 +521,185 @@
     }, 240);
   }
 
+  /* ── 消息流 ───────────────────────────────────────────────────────
+
+     一张纸，按时间往上堆消息。她靠左，你靠右。
+
+     渲染不用 innerHTML 拼字符串：一是别养成习惯，二是流式时每秒重建
+     十几次，建 DOM 节点比反复解析字符串稳。
+
+     Markdown 只认三种：**粗体**、`行内代码`、- 列表。
+     模型实际会写的也就这些，认全了反而容易把正常文本误判成语法。 */
+
+  function inline(node, s) {
+    var re = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) node.appendChild(document.createTextNode(s.slice(last, m.index)));
+      if (m[1] != null) {
+        var b = document.createElement('strong');
+        b.textContent = m[1];
+        node.appendChild(b);
+      } else {
+        var c = document.createElement('code');
+        c.textContent = m[2];
+        node.appendChild(c);
+      }
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) node.appendChild(document.createTextNode(s.slice(last)));
+  }
+
+  function renderRich(node, text) {
+    node.textContent = '';
+    var lines = String(text || '').split('\n');
+    var list = null;
+    var para = [];
+
+    function flush() {
+      if (!para.length) return;
+      var p = document.createElement('p');
+      inline(p, para.join('\n'));
+      node.appendChild(p);
+      para = [];
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var m;
+
+      if ((m = ln.match(/^\s*[-*]\s+(.+)$/))) {
+        flush();
+        if (!list || list.tagName !== 'UL') {
+          list = document.createElement('ul');
+          node.appendChild(list);
+        }
+        var li = document.createElement('li');
+        inline(li, m[1]);
+        list.appendChild(li);
+        continue;
+      }
+
+      if ((m = ln.match(/^\s*\d+[.)]\s+(.+)$/))) {
+        flush();
+        if (!list || list.tagName !== 'OL') {
+          list = document.createElement('ol');
+          node.appendChild(list);
+        }
+        var li2 = document.createElement('li');
+        inline(li2, m[1]);
+        list.appendChild(li2);
+        continue;
+      }
+
+      list = null;
+      if (!ln.trim()) { flush(); continue; }
+      para.push(ln);
+    }
+    flush();
+  }
+
+  function scrollLog() {
+    if (el.log) el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  function clockText() {
+    var d = new Date();
+    var h = d.getHours();
+    var m = d.getMinutes();
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  function pushMsg(role, text) {
+    var wrap = document.createElement('div');
+    wrap.className = 'l2d-msg ' + (role === 'user' ? 'is-me' : 'is-her');
+    var body = document.createElement('div');
+    body.className = 'l2d-say';
+    wrap.appendChild(body);
+    el.log.appendChild(wrap);
+
+    /* 只留最近 24 条。二十几轮之后没人往上翻 */
+    while (el.log.children.length > 24) el.log.removeChild(el.log.firstChild);
+
+    renderRich(body, text || '');
+    if (el.clock) el.clock.textContent = clockText();
+    scrollLog();
+    return body;
+  }
+
+  /* 她说一句完整的话（不是流式）：打招呼、摸头回应、报错 */
   function say(text) {
-    el.text.classList.remove('is-typing');
-    el.text.textContent = text;
-    el.text.scrollTop = 0;
+    el.live = null;
+    pushMsg('assistant', text);
+  }
+
+  /* 她动过手的痕迹，一行小胶囊。
+     name 是 __note 时直接用 args.text——服务端检索用这个通道。 */
+  function noteAct(name, args) {
+    if (!el.live || !el.live.parentNode) return;
+    var map = {
+      search_posts: '翻了翻站里的文章',
+      set_theme: args && args.mode === 'light' ? '把页面切到白天了' : '把页面切到夜间了',
+      control_music: args && args.action === 'pause' ? '把歌暂停了'
+        : args && args.action === 'next' ? '换了一首' : '把歌放起来了',
+      toggle_lyric: args && args.show === false ? '把字幕收起来了' : '把字幕放出来了',
+      reset_position: '挪回角落了'
+    };
+    var label = name === '__note'
+      ? String((args && args.text) || '')
+      : (map[name] || '');
+    if (!label) return;
+
+    var wrap = el.live.parentNode;
+    var box = wrap.querySelector('.l2d-acts');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'l2d-acts';
+      wrap.insertBefore(box, el.live);
+    }
+    for (var i = 0; i < box.children.length; i++) {
+      if (box.children[i].textContent === label) return;
+    }
+    var chip = document.createElement('span');
+    chip.textContent = label;
+    box.appendChild(chip);
+    scrollLog();
+  }
+
+  /* 历史放 sessionStorage：刷新还在，关掉标签页就清。
+     用 localStorage 的话，几个月后她还会提起你早忘了的事。 */
+  function saveLog() {
+    try {
+      sessionStorage.setItem(LOG_KEY, JSON.stringify(STATE.history.slice(-20)));
+    } catch (e) {}
+  }
+
+  function loadLog() {
+    try {
+      var a = JSON.parse(sessionStorage.getItem(LOG_KEY) || '[]');
+      if (!Array.isArray(a)) return [];
+      return a.filter(function (m) {
+        return m && (m.role === 'user' || m.role === 'assistant') &&
+          typeof m.content === 'string' && m.content;
+      }).slice(-20);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function rebuildLog() {
+    el.log.textContent = '';
+    STATE.history.forEach(function (m) {
+      pushMsg(m.role === 'user' ? 'user' : 'assistant', m.content);
+    });
+  }
+
+  function remember(q, a) {
+    STATE.history.push({ role: 'user', content: q });
+    STATE.history.push({ role: 'assistant', content: a });
+    if (STATE.history.length > 20) STATE.history = STATE.history.slice(-20);
+    saveLog();
   }
 
   function onPoke() {
@@ -565,7 +752,7 @@
      纵向：气泡最高约 200px（文字区 max-height 168 + padding + 输入框）。 */
   function bubbleRoom() {
     var w = el.root.offsetWidth;
-    var bw = Math.min(240, window.innerWidth - 40);   /* 跟 CSS 的 max-width 一致 */
+    var bw = Math.min(320, window.innerWidth - 40);   /* 跟 CSS 的 width 一致 */
     return {
       x: Math.max(0, bw - w * 0.5),
       y: 200
@@ -945,6 +1132,7 @@
           openBubble();
           say(line);
           STATE.history.push({ role: 'assistant', content: line });
+          saveLog();
           react('happy');
           setTimeout(function () {
             if (!STATE.busy && !STATE.interacted) closeBubble();
@@ -954,7 +1142,8 @@
       }
 
       openBubble();
-      say(contextLine() || pick(GREETINGS));
+      if (STATE.history.length) rebuildLog();
+      else say(contextLine() || pick(GREETINGS));
       react('happy');
       /* 用户一旦自己点开过，就不再自动收 */
       setTimeout(function () {
@@ -979,8 +1168,12 @@
 
     setBusy(true);
     react('think');
-    el.text.textContent = '';
-    el.text.classList.add('is-typing');
+
+    /* 先把你的话放上去，再给她留个位置放三个点。
+       她开口之前气泡不能空着，那会让人以为没发出去。 */
+    pushMsg('user', q);
+    el.live = pushMsg('assistant', '');
+    el.live.innerHTML = '<span class="l2d-thinking"><i></i><i></i><i></i></span>';
 
     var msgs = STATE.history.concat([{ role: 'user', content: q }]).slice(-CFG.turns * 2);
 
@@ -1004,7 +1197,6 @@
       var text = String((out && out.text) || '');
       var acts = (out && out.acts) || 0;
 
-      el.text.classList.remove('is-typing');
       setBusy(false);
       react('nod');
 
@@ -1013,22 +1205,23 @@
       var clean = text.replace(/\[\[ACT:[a-z:]+\]\]/gi, '').trim();
 
       if (clean) {
-        el.text.textContent = clean;
-        STATE.history.push({ role: 'user', content: q });
-        STATE.history.push({ role: 'assistant', content: clean });
-        STATE.history = STATE.history.slice(-CFG.turns * 2);
+        renderRich(el.live, clean);
+        remember(q, clean);
       } else if (acts > 0) {
         /* 只调了工具、一句没说——气泡不能空着 */
-        el.text.textContent = '好，弄了';
-        STATE.history.push({ role: 'user', content: q });
-        STATE.history.push({ role: 'assistant', content: '好，弄了' });
-        STATE.history = STATE.history.slice(-CFG.turns * 2);
+        renderRich(el.live, '好，弄了');
+        remember(q, '好，弄了');
       } else {
+        /* 她一个字没吐。把占位那条拆掉，换一句实话 */
+        if (el.live && el.live.parentNode) el.live.parentNode.remove();
+        el.live = null;
         say('……我走神了，再说一遍？');
       }
+      scrollLog();
     }).catch(function (err) {
-      el.text.classList.remove('is-typing');
       setBusy(false);
+      if (el.live && el.live.parentNode) el.live.parentNode.remove();
+      el.live = null;
       say(errorLine(err));
     });
   }
@@ -1036,7 +1229,7 @@
   function readStream(res) {
     if (!res.body || !res.body.getReader) {
       return res.text().then(function (t) {
-        el.text.textContent = t;
+        if (el.live) renderRich(el.live, t);
         return { text: t, acts: 0 };
       });
     }
@@ -1075,7 +1268,19 @@
           if (evt === 'act') {
             try {
               var o = JSON.parse(payload);
-              if (o && o.name && runTool(o.name, o.args)) acted++;
+              if (o && o.name && runTool(o.name, o.args)) {
+                acted++;
+                noteAct(o.name, o.args);
+              }
+            } catch (e) {}
+            continue;
+          }
+
+          /* 服务端自己检索的痕迹。前端不执行任何东西，只记一笔 */
+          if (evt === 'note') {
+            try {
+              var n = JSON.parse(payload);
+              if (n && n.t) noteAct('__note', { text: String(n.t) });
             } catch (e) {}
             continue;
           }
@@ -1086,8 +1291,8 @@
             var t = d && d.content;
             if (t) {
               full += t;
-              el.text.textContent = stripAct(full);
-              el.text.scrollTop = el.text.scrollHeight;
+              if (el.live) renderRich(el.live, stripAct(full));
+              scrollLog();
             }
           } catch (e) {}
         }
