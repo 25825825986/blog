@@ -1681,9 +1681,28 @@
   }
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && npOpen) {
+    if (!npOpen) return;
+
+    if (e.key === 'Escape') {
       e.preventDefault();
       closeNp();
+      return;
+    }
+
+    /* 空格播放/暂停，左右切歌。沉浸页没有输入框，
+       不用担心把别人正在打的空格吞掉 */
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      next();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      prev();
     }
   });
 
