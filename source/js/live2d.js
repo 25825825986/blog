@@ -610,9 +610,10 @@
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }
 
-  function pushMsg(role, text) {
+  function pushMsg(role, text, ephemeral) {
     var wrap = document.createElement('div');
-    wrap.className = 'l2d-msg ' + (role === 'user' ? 'is-me' : 'is-her');
+    wrap.className = 'l2d-msg ' + (role === 'user' ? 'is-me' : 'is-her') +
+      (ephemeral ? ' is-ephemeral' : '');
     var body = document.createElement('div');
     body.className = 'l2d-say';
     wrap.appendChild(body);
@@ -628,10 +629,18 @@
     return body;
   }
 
-  /* 她说一句完整的话（不是流式）：打招呼、摸头回应、报错 */
-  function say(text) {
+  /* 她说一句完整的话（不是流式）：打招呼、摸头回应、报错。
+
+     ephemeral 的不会进 STATE.history，也不会进会话存储。点她一下、
+     摸她一下蹦出来的那句话，不算聊天——下次发消息前会被清掉。 */
+  function say(text, ephemeral) {
     el.live = null;
-    pushMsg('assistant', text);
+    if (ephemeral) {
+      /* 连点几下只留最新一句，不堆 */
+      var old = el.log.querySelectorAll('.is-ephemeral');
+      for (var i = 0; i < old.length; i++) old[i].remove();
+    }
+    return pushMsg('assistant', text, ephemeral);
   }
 
   /* 她动过手的痕迹，一行小胶囊。
@@ -708,10 +717,10 @@
     STATE.interacted = true;
 
     if (STATE.open) {
-      say(pick(GREETINGS));
+      say(pick(GREETINGS), true);
     } else {
       openBubble();
-      say(contextLine() || pick(GREETINGS));
+      say(contextLine() || pick(GREETINGS), true);
     }
 
     reactRandom();
@@ -865,7 +874,7 @@
     clearTimeout(hoverTimer);
 
     if (!STATE.open) openBubble();
-    say(pick(PATS));
+    say(pick(PATS), true);
     react(Math.random() < 0.55 ? 'happy' : 'shy');
 
     /* 不抢焦点：摸头是顺手一下，不是要跟她说话。 */
@@ -1168,6 +1177,10 @@
 
     setBusy(true);
     react('think');
+
+    /* 逗她时蹦出来的话不算对话，发消息前清掉 */
+    var eph = el.log.querySelectorAll('.is-ephemeral');
+    for (var i = 0; i < eph.length; i++) eph[i].remove();
 
     /* 先把你的话放上去，再给她留个位置放三个点。
        她开口之前气泡不能空着，那会让人以为没发出去。 */
