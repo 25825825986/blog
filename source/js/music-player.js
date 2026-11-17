@@ -1115,6 +1115,10 @@
     buildLyricLayer();
     mountLyric();
 
+    // Music page cover opens the immersive view (home cover does not).
+    var heroCover = pageEl.querySelector('.mp-hero__cover');
+    if (heroCover) heroCover.addEventListener('click', function () { openNp(); });
+
     pageEl.querySelector('.mp-tabs').addEventListener('click', function (e) {
       var btn = e.target.closest('[data-pl]');
       if (btn) switchPlaylist(Number(btn.getAttribute('data-pl')));
@@ -1367,12 +1371,8 @@
 
     bindTimeline();
 
-    /* 点封面进沉浸模式。dock 的 click 处理里已经排除了封面，
-       不会和「点空白收起」打架 */
-    coverBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      openNp();
-    });
+    /* Home dock cover only toggles the player panel (see pointerup);
+       immersive view is opened from the music page cover. */
   }
 
   /* Immersive v2: this block replaces the previous np UI inside the player closure.

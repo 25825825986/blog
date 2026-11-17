@@ -368,6 +368,7 @@ body.music-page {
 
 /* 封面像贴上去的一张照片：细边、投影，不抢戏 */
 .mp-hero__cover {
+  cursor: pointer;
   position: relative;
   z-index: 1;
   flex: 0 0 136px;
