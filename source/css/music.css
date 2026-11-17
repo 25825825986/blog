@@ -1283,14 +1283,28 @@ body.np-on #music-dock { opacity: 0; pointer-events: none; }
 .np-v2 button:focus-visible, .np-v2 [role="slider"]:focus-visible, .np-v2 input:focus-visible { outline: 2px solid var(--np-accent); outline-offset: 5px; }
 .np-v2 svg { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
 .np-v2 .np-bg {
-  inset: -15%; opacity: .16; filter: blur(90px) saturate(.65);
+  inset: -15%; opacity: .09; filter: blur(52px) saturate(.5);
   transform: scale(1.1); background-position: 28% 48%;
   animation: none !important;
 }
 .np-v2 .np-veil {
-  background: radial-gradient(ellipse at 15% 38%, rgba(163, 116, 73, .13), transparent 58%), linear-gradient(110deg, rgba(15, 19, 18, .1), rgba(15, 19, 18, .64)), linear-gradient(0deg, rgba(15, 19, 18, .65), transparent 30%);
+  background:
+    radial-gradient(ellipse 130% 95% at 26% 4%, rgba(255,255,255,.045), transparent 62%),
+    linear-gradient(135deg, #26282a 0%, #202224 46%, #191b1d 100%);
 }
-.np-grain { position: absolute; inset: 0; pointer-events: none; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 140 140' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.65' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.np-grain {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%22%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E%22"), url("data:image/svg+xml,%22%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='560'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.045' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E%22"), url("data:image/svg+xml,%22%3Csvg xmlns='http://www.w3.org/2000/svg' width='820' height='820'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E%22"), url("data:image/svg+xml,%22%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.5 .02' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E%22"), url("data:image/svg+xml,%22%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.02 .5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E%22");
+  background-size: 220px 220px, 560px 560px, 820px 820px, 520px 520px, 520px 520px;
+  opacity: .15; mix-blend-mode: screen;
+}
+/* 纸面受光：四周轻微压暗，中间留亮，模拟纸张起伏 */
+.np-v2::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(ellipse 92% 82% at 50% 42%, transparent 52%, rgba(0,0,0,.28) 100%),
+    linear-gradient(90deg, rgba(0,0,0,.2), transparent 7%, transparent 93%, rgba(0,0,0,.2));
+}
 .np-header {
   position: absolute; top: 0; left: 0; right: 0; z-index: 6;
   display: flex; align-items: center; justify-content: space-between;
@@ -1401,7 +1415,17 @@ body.np-on .mp-lyric { display: none !important; }
 body.np-on .l2d { visibility: hidden; }
 .np-v2[data-mood="day"] { --np-ink: #353932; --np-muted: #6b6f65; --np-faint: #8e9186; --np-line: rgba(45,54,37,.12); --np-panel: #f3f0e7; --np-surface: #eae8dd; --np-accent: #897153 !important; }
 .np-v2[data-mood="day"] .np-bg { opacity: .09; }
-.np-v2[data-mood="day"] .np-veil { background: radial-gradient(ellipse at 16% 40%, rgba(196,175,138,.26), transparent 65%), linear-gradient(110deg, transparent, rgba(247,248,238,.56)); }
+.np-v2[data-mood="day"] .np-veil {
+  background:
+    radial-gradient(ellipse 130% 95% at 26% 4%, rgba(255,255,252,.55), transparent 62%),
+    linear-gradient(135deg, #f1eee4 0%, #eae6d9 46%, #ded9c9 100%);
+}
+.np-v2[data-mood="day"] .np-grain { opacity: .22; mix-blend-mode: multiply; }
+.np-v2[data-mood="day"]::before {
+  background:
+    radial-gradient(ellipse 92% 82% at 50% 42%, transparent 52%, rgba(120,105,80,.09) 100%),
+    linear-gradient(90deg, rgba(120,105,80,.05), transparent 7%, transparent 93%, rgba(120,105,80,.05));
+}
 .np-v2[data-mood="day"] .np-art-shadow { opacity: .16; }
 .np-v2[data-mood="day"] .np-play { background: #404738; color: #fffaf0; }
 .np-v2[data-mood="day"] .np-play:hover { background: #535c47; }
