@@ -1,5 +1,26 @@
 (function () {
   var POS_KEY = 'music-dock-pos';
+  /* Cover proxy: netease originals are low-res; route them through
+     /meting/cover for LANCZOS resize + sharpen, cached server-side.
+     Idempotent so an already-proxied src passes through unchanged.
+     Falls back to the raw URL if the proxy ever fails. */
+  function coverUrl(u) {
+    if (!u) return '';
+    if (u.indexOf('/meting/cover') === 0 || u.indexOf('data:') === 0) return u;
+    if (/^https?:\/\//.test(u) && /music\.126\.net\//.test(u)) {
+      return '/meting/cover?url=' + encodeURIComponent(u);
+    }
+    return u;
+  }
+  function setCover(img, raw) {
+    if (!img || !raw) return;
+    var proxied = coverUrl(raw);
+    img.onerror = function () {
+      img.onerror = null;
+      if (proxied !== raw) img.src = raw;
+    };
+    if (img.getAttribute('src') !== proxied) img.src = proxied;
+  }
   /* 播放进度记忆：记住「哪首歌 + 听到第几秒」，刷新或下次进站接着听。
      只存歌名/歌手/秒数，不存播放地址——网易云的地址带时效签名，几十分钟就失效，
      下次进来必须重新向服务端要一份新的。 */
@@ -165,7 +186,7 @@
     currentKey = trackKey(item);
     titleEl.textContent = item.title || '未知曲目';
     if (item.pic) {
-      coverImg.src = item.pic;
+      setCover(coverImg, item.pic);
       coverBtn.classList.add('has-cover');
     }
     if (pendingSeek > 0) {
@@ -410,7 +431,7 @@
     artistEl.textContent = item.author || '';
     loadLyric(item.songId);
     if (item.pic) {
-      coverImg.src = item.pic;
+      setCover(coverImg, item.pic);
       coverBtn.classList.add('has-cover');
     } else {
       coverBtn.classList.remove('has-cover');
@@ -1175,12 +1196,12 @@
     /* 封面优先用歌单自己的，列表还没到时也有图可看 */
     var pic = pl.cover || (playlist[0] && playlist[0].pic) || '';
     if (pic) {
-      coverNode.src = pic;
+      setCover(coverNode, pic);
       coverNode.classList.add('is-ready');
-      bgNode.style.backgroundImage = 'url("' + pic.replace(/"/g, '\\"') + '")';
+      bgNode.style.backgroundImage = 'url("' + coverUrl(pic).replace(/"/g, '\\"') + '")';
       // 未开始播放时，播放条也显示歌单封面，避免只有一个音符图标
       if (!audio || !audio.src) {
-        coverImg.src = pic;
+        setCover(coverImg, pic);
         coverBtn.classList.add('has-cover');
       }
     }
@@ -1622,14 +1643,15 @@
     npEl.querySelector('.np-album-pl').textContent = audio && audio.src && npPlayingItem ? npPlayingListName : (currentPl().name || '');
     if (pic) {
       if (npImg.getAttribute('src') !== pic) {
-        npImg.src = pic; npImg.style.visibility = '';
-        npBg.style.backgroundImage = 'url("' + pic.replace(/["\\\n\r]/g, '') + '")';
+        setCover(npImg, pic); npImg.style.visibility = '';
+        npBg.style.backgroundImage = 'url("' + coverUrl(pic).replace(/["\\\n\r]/g, '') + '")';
       }
     } else { npImg.removeAttribute('src'); npImg.style.visibility = 'hidden'; npBg.style.backgroundImage = ''; }
-    if (pic !== npAccentFor) {
-      npAccentFor = pic;
+    var coverForHash = coverUrl(pic);
+    if (coverForHash !== npAccentFor) {
+      npAccentFor = coverForHash;
       npAccentColor = '#d5af89'; npEl.style.setProperty('--np-accent', npAccentColor);
-      if (pic) pickAccent(pic);
+      if (coverForHash) pickAccent(coverForHash);
     }
     npRenderQueue(); npTick(); npSyncPlayIcon();
   }
