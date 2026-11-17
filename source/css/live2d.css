@@ -191,8 +191,9 @@
 }
 
 .l2d-paper {
-  --paper-bg: #fdfcf9;
+  --paper-bg: rgba(255, 255, 255, 0.72);
   --paper-line: rgba(30, 44, 66, 0.09);
+  --paper-edge: rgba(255, 255, 255, 0.6);
   --ink: #22303f;
   --ink-soft: #6b7789;
   --bookmark: var(--btn-bg, #49b1f5);
@@ -203,9 +204,15 @@
   max-height: min(48vh, 340px);
   border-radius: 12px;
   background: var(--paper-bg);
-  border: 1px solid var(--paper-line);
+  border: 1px solid var(--paper-edge);
+  /* 毛玻璃：纸面半透明，背后文章的字的颜色透上来但不抢正文。
+     -webkit- 那份给老 Safari，drop-shadow 不能用来代替——它会被 filter 光栅化，
+     里面的 13px 字会发虚。 */
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
   box-shadow: 0 10px 30px rgba(28, 42, 64, 0.14),
-              0 2px 6px rgba(28, 42, 64, 0.07);
+              0 2px 6px rgba(28, 42, 64, 0.07),
+              inset 0 1px 0 var(--paper-edge);
   overflow: hidden;
 }
 
@@ -462,12 +469,13 @@
 
 html[data-theme="dark"] .l2d-paper,
 .dark .l2d-paper {
-  --paper-bg: #333a47;
+  --paper-bg: rgba(38, 46, 60, 0.7);
   --paper-line: rgba(255, 255, 255, 0.1);
+  --paper-edge: rgba(255, 255, 255, 0.16);
   --ink: #e6ebf5;
   --ink-soft: #94a2b8;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5),
-              0 0 0 1px rgba(255, 255, 255, 0.04);
+              inset 0 1px 0 var(--paper-edge);
 }
 
 html[data-theme="dark"] .l2d-log::-webkit-scrollbar-thumb,
