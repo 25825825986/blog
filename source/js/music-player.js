@@ -77,6 +77,7 @@
   var playlist = [];
   var index = 0;
   var failCount = 0;
+  var refreshingUrl = false;   /* 过期地址正在刷新，防止 error 递归 */
   var loading = false;
   var dragging = false;
   var moved = false;
@@ -542,8 +543,7 @@
 
     audio.addEventListener('error', function () {
       /* 带了 crossOrigin 但源没回 CORS 头，浏览器会当成加载失败（code 4）。
-         去掉再试一次——宁可没有频谱，也不能没声音。只试一次，
-         免得 URL 真过期时在这儿空转。 */
+         去掉再试一次——宁可没有频谱，也不能没声音。只试一次。 */
       if (audio.crossOrigin && !corsDropped && audio.error &&
           audio.error.code === 4) {
         corsDropped = true;
@@ -553,12 +553,40 @@
         audio.play().catch(function () {});
         return;
       }
-      failCount += 1;
-      if (failCount > 5) {
-        console.warn('[music] 连续多首无法播放，先停下');
-        return;
-      }
-      setTimeout(next, 320);
+      /* 网易云的播放地址带时效签名（约 20 分钟），而且整个歌单是同一时刻
+         生成的。歌单在前端一直复用，听久了后面的歌就集体过期，CDN 回 403，
+         浏览器报 error code 4——表现就是「每次循环都跳过同样的几首」。
+         这里不直接跳歌：先重新拉一次歌单拿新鲜地址，按「歌名|歌手」找回
+         当前这首重播。只有刷新也救不回来（真下架 / 无版权）才跳下一首。 */
+      if (refreshingUrl) return;
+      var failedKey = currentKey;
+      var failedSrc = audio.src;
+      refreshingUrl = true;
+      audio.pause();
+      loadPlaylist(true).then(function (list) {
+        if (!list || !list.length) throw new Error('刷新歌单为空');
+        var fresh = -1;
+        for (var i = 0; i < playlist.length; i++) {
+          if (trackKey(playlist[i]) === failedKey) { fresh = i; break; }
+        }
+        /* 这首已从歌单里没了，或者新地址跟旧的一样（服务端缓存命中旧签名），
+           那就没救了，走原来的跳歌逻辑。 */
+        if (fresh < 0 || playlist[fresh].url === failedSrc) {
+          throw new Error('无新鲜地址');
+        }
+        console.warn('[music] 播放地址过期，已换新地址重播：' + failedKey);
+        failCount = 0;
+        load(fresh, true);
+        refreshingUrl = false;
+      }).catch(function () {
+        refreshingUrl = false;
+        failCount += 1;
+        if (failCount > 5) {
+          console.warn('[music] 连续多首无法播放，先停下');
+          return;
+        }
+        setTimeout(next, 320);
+      });
     });
   }
 
@@ -1607,6 +1635,25 @@
       npTick();
     });
   }
+  /* 左侧封面按剩余高度收。标题一换行、或窗口变矮，左列就会高过 stage；
+     stage 是 align-items:center 的网格，超出的部分上下对称溢出，艺术家行
+     正好落到进度条上。这里量一次 meta 实际高度，把封面卡在剩下的空间里。 */
+  function fitNpAlbum() {
+    if (!npEl || !npEl.classList.contains('is-on')) return;
+    var album = npEl.querySelector('.np-album');
+    var stage = npEl.querySelector('.np-stage');
+    var meta = npEl.querySelector('.np-meta');
+    if (!album || !stage || !meta) return;
+    album.style.removeProperty('--np-art-max');
+    var cs = getComputedStyle(stage);
+    var stageH = stage.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    if (stageH <= 0) return;                 /* 还没布局，量不到 */
+    var ms = getComputedStyle(meta);
+    var metaH = meta.offsetHeight + (parseFloat(ms.marginTop) || 0);
+    var avail = Math.max(96, Math.round(stageH - metaH));
+    if (avail < 382) album.style.setProperty('--np-art-max', avail + 'px');
+  }
+
   function openNp() {
     if (npOpen) return;
     npFollowTheme();
@@ -1653,7 +1700,7 @@
       npAccentColor = '#d5af89'; npEl.style.setProperty('--np-accent', npAccentColor);
       if (coverForHash) pickAccent(coverForHash);
     }
-    npRenderQueue(); npTick(); npSyncPlayIcon();
+    npRenderQueue(); npTick(); npSyncPlayIcon(); fitNpAlbum();
   }
   function npTick() {
     if (!npEl || !npOpen) return;
@@ -1895,6 +1942,7 @@
     bootstrap();
     syncRoute();
     window.addEventListener('resize', clamp);
+    window.addEventListener('resize', fitNpAlbum);
 
     /* 移动端切后台、桌面端关标签页，都不一定触发 pause，这里兜一次底 */
     window.addEventListener('pagehide', function () { saveState(true); });

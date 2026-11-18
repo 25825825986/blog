@@ -1333,7 +1333,7 @@ body.np-on #music-dock { opacity: 0; pointer-events: none; }
   column-gap: clamp(68px, 8vw, 140px); align-items: center;
 }
 .np-album { min-width: 0; width: 100%; max-width: 410px; justify-self: start; }
-.np-art-wrap { position: relative; width: 100%; max-width: min(43vh, 382px); }
+.np-art-wrap { position: relative; width: 100%; max-width: min(43vh, 382px, var(--np-art-max, 382px)); }
 .np-art-shadow { position: absolute; inset: 12% 5% -4%; background: rgba(0,0,0,.8); filter: blur(30px); border-radius: 14px; }
 .np-v2 .np-cover {
   width: 100%; border-radius: 8px; aspect-ratio: 1;
@@ -1433,8 +1433,17 @@ body.np-on .l2d { visibility: hidden; }
 .np-v2.is-focus .np-stage { display: block; max-width: 1100px; }
 .np-v2.is-focus .np-lyric-side { height: 100%; }
 .np-v2.is-focus .np-line { text-align: center; font-size: clamp(24px, 3.7vw, 48px) !important; padding: 22px 0; }
-@media (min-width: 1700px) { .np-v2 .np-stage { max-width: 1460px; column-gap: 150px; } .np-v2 .np-art-wrap { max-width: min(45vh, 430px); } }
-@media (max-width: 1050px) and (min-width: 701px) { .np-v2 .np-stage { padding-inline: 6vw; gap: 6vw; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); max-width: none; } .np-v2 .np-art-wrap { max-width: min(38vh,320px); } .np-v2 .np-line { font-size: 24px !important; } .np-extras { gap: 5px; } .np-volume input { width: 40px; } .np-mood { gap: 8px; } .np-v2 .np-spec { width: 50px; flex-basis: 50px; } }
+/* 视口矮的时候（小窗口、外接屏竖放）左侧一列容易装不下：
+   标题换行后整列高过 stage，居中就溢出到进度条上。
+   这里把标题与间距收一档，数字部分交给 JS 量高度兜底。 */
+@media (max-height: 760px) {
+  .np-v2 .np-meta { margin-top: 18px; }
+  .np-v2 .np-title { font-size: clamp(21px, 2.1vw, 30px); margin-top: 8px; }
+  .np-v2 .np-artist { font-size: 12px; margin-top: 8px; }
+}
+
+@media (min-width: 1700px) { .np-v2 .np-stage { max-width: 1460px; column-gap: 150px; } .np-v2 .np-art-wrap { max-width: min(45vh, 430px, var(--np-art-max, 430px)); } }
+@media (max-width: 1050px) and (min-width: 701px) { .np-v2 .np-stage { padding-inline: 6vw; gap: 6vw; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); max-width: none; } .np-v2 .np-art-wrap { max-width: min(38vh, 320px, var(--np-art-max, 320px)); } .np-v2 .np-line { font-size: 24px !important; } .np-extras { gap: 5px; } .np-volume input { width: 40px; } .np-mood { gap: 8px; } .np-v2 .np-spec { width: 50px; flex-basis: 50px; } }
 @media (max-width: 700px) {
   .np-header { height: 75px; padding: 19px 21px; }
   .np-brand { font-size: 13px; gap: 9px; letter-spacing: .1em; }
@@ -1467,6 +1476,6 @@ body.np-on .l2d { visibility: hidden; }
   .np-v2.is-focus .np-stage { display: flex; }
   .np-v2.is-focus .np-line { font-size: 29px !important; }
 }
-@media (max-height: 650px) and (min-width: 701px) { .np-header { height: 70px; padding-block: 15px; } .np-v2 .np-stage { top: 70px; bottom: 136px; } .np-v2 .np-art-wrap { max-width: 32vh; } .np-v2 .np-meta { margin-top: 15px; } .np-v2 .np-title { font-size: 28px; } .np-lyric-side { height: 95%; } .np-console { padding-bottom: 12px; } .np-bottom { padding-top: 7px; min-height: 60px; } }
+@media (max-height: 650px) and (min-width: 701px) { .np-header { height: 70px; padding-block: 15px; } .np-v2 .np-stage { top: 70px; bottom: 136px; } .np-v2 .np-art-wrap { max-width: min(32vh, var(--np-art-max, 9999px)); } .np-v2 .np-meta { margin-top: 15px; } .np-v2 .np-title { font-size: 28px; } .np-lyric-side { height: 95%; } .np-console { padding-bottom: 12px; } .np-bottom { padding-top: 7px; min-height: 60px; } }
 @media (max-height: 650px) and (max-width: 700px) { .np-v2 .np-stage { gap: 15px; top: 73px; bottom: 129px; } .np-art-wrap { width: 72px; flex-basis: 72px; } .np-v2 .np-title { font-size: 24px; } .np-lyric-heading, .np-lyric-foot { display: none; } .np-console { padding-bottom: 8px; } .np-bottom { padding-top: 0; } }
 @media (prefers-reduced-motion: reduce) { .np-v2 *, .np-v2 *::before, .np-v2 *::after { animation: none !important; transition-duration: 0ms !important; } }
