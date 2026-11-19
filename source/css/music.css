@@ -1384,6 +1384,19 @@ body.np-on #music-dock { opacity: 0; pointer-events: none; }
 .np-v2 .np-btn { width: 44px; height: 44px; color: var(--np-muted); }
 .np-v2 .np-btn:hover { background: var(--np-line); color: var(--np-ink); }
 .np-v2 .np-btn svg { fill: currentColor; stroke: none; width: 19px; height: 19px; }
+/* 模式按钮是次要操作，比播放键小一圈；沉浸页四个按钮并排也不挤 */
+.np-v2 .np-btn--mode { width: 38px; height: 38px; }
+.np-v2 .np-btn--mode svg { width: 17px; height: 17px; }
+/* 模式图标是开放路径（横线、交叉箭头），只靠 fill 会画成一条细缝看不见，
+   必须描边；站内其他按钮是实心 path，不套这条。 */
+.music-dock__btn--mode svg,
+.np-v2 .np-btn--mode svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .np-v2 .np-play { width: 54px; height: 54px; border: 1px solid var(--np-line); background: #ece4d8; color: #292d29; }
 .np-v2 .np-play:hover { background: #fff4e3; color: #1d211f; }
 .np-v2 .np-play svg { width: 21px; height: 21px; }

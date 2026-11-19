@@ -67,8 +67,18 @@
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
     prev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6L18 18V6z"/></svg>',
-    next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>'
+    next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+    seq: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h12M4 12h12M4 17h8M17 9l3 3-3 3"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+    least: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Zm7 15 .7 1.8L21.5 19l-1.8.7L19 21.5l-.7-1.8-1.8-.7 1.8-.7L19 17Z"/></svg>'
   };
+  var MODE_KEY = 'music-play-mode';
+  var COUNT_KEY = 'music-play-counts';
+  var MODES = [
+    { id: 'seq', label: '顺序播放', short: '顺序', icon: ICONS.seq },
+    { id: 'shuffle', label: '随机播放', short: '随机', icon: ICONS.shuffle },
+    { id: 'least', label: '少听优先', short: '少听', icon: ICONS.least }
+  ];
 
   var dock, coverBtn, coverImg, titleEl, artistEl, playBtn, barEl;
   var timelineEl, timelineFill, timelineDot, timeEl;
@@ -84,12 +94,117 @@
   var start = { x: 0, y: 0, left: 0, top: 0 };
   var pendingSeek = 0;   /* 下次 load 之后要跳到的秒数（续播用） */
   var currentKey = '';   /* 当前播放曲目的「歌名|歌手」，与列表下标解耦 */
+  var playMode = 'seq';         /* seq / shuffle / least，一个按钮循环切 */
+  var playOrder = [];           /* 非顺序模式下的播放次序，存 playlist 下标 */
+  var countedForLoad = false;   /* 暂停后继续也会触发 play，同一次 load 只记一次 */
   var lastSaveAt = 0;    /* 上次落盘时间，用来给 timeupdate 节流 */
 
   /* ---------------------------------------------------------- 进度记忆 */
 
   function trackKey(item) {
     return (item.title || '') + '|' + (item.author || '');
+  }
+
+  /* ── 播放模式 ────────────────────────────────────────────────────
+   * 顺序 / 随机 / 少听优先，一个按钮循环。少听优先按每首歌的累计播放
+   * 次数升序排，没听过的最先；次数相同的组里随机打散。一轮听完重排，
+   * 刚听过的自然沉到后面。次数按「歌名|歌手」记，跨歌单通用。
+   * ─────────────────────────────────────────────────────────────── */
+  function readCounts() {
+    try {
+      var m = JSON.parse(localStorage.getItem(COUNT_KEY) || '{}');
+      return (m && typeof m === 'object') ? m : {};
+    } catch (e) { return {}; }
+  }
+
+  function bumpCount(key) {
+    if (!key) return;
+    var m = readCounts();
+    m[key] = (typeof m[key] === 'number' && m[key] > 0 ? m[key] : 0) + 1;
+    var keys = Object.keys(m);
+    if (keys.length > 400) {
+      keys.sort(function (a, b) { return m[a] - m[b]; });
+      for (var i = 0; i < keys.length - 400; i++) delete m[keys[i]];
+    }
+    try { localStorage.setItem(COUNT_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+
+  function shuffled(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function rebuildOrder() {
+    var arr = [];
+    for (var i = 0; i < playlist.length; i++) arr.push(i);
+    if (playMode === 'shuffle') {
+      arr = shuffled(arr);
+    } else if (playMode === 'least') {
+      var counts = readCounts();
+      var groups = {};
+      arr.forEach(function (i) {
+        var c = counts[trackKey(playlist[i])] || 0;
+        (groups[c] = groups[c] || []).push(i);
+      });
+      arr = [];
+      Object.keys(groups).map(Number).sort(function (a, b) { return a - b; })
+        .forEach(function (c) { arr = arr.concat(shuffled(groups[c])); });
+    }
+    playOrder = arr;
+  }
+
+  function modeInfo() {
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].id === playMode) return MODES[i];
+    return MODES[0];
+  }
+
+  function syncModeButtons() {
+    var info = modeInfo();
+    var label = info.label + '，点击切换';
+    var bs = [dock && dock.querySelector('[data-act="mode"]'),
+              npEl && npEl.querySelector('[data-act="mode"]')];
+    bs.forEach(function (b) {
+      if (!b) return;
+      b.innerHTML = info.icon;
+      b.setAttribute('title', label);
+      b.setAttribute('aria-label', label);
+      b.dataset.mode = playMode;
+    });
+  }
+
+  function setPlayMode(m, silent) {
+    var ok = false;
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].id === m) ok = true;
+    if (!ok) return;
+    playMode = m;
+    try { localStorage.setItem(MODE_KEY, m); } catch (e) {}
+    rebuildOrder();
+    syncModeButtons();
+    if (!silent) console.log('[music] 播放模式：' + modeInfo().label);
+  }
+
+  function cyclePlayMode() {
+    var i = 0;
+    for (var k = 0; k < MODES.length; k++) if (MODES[k].id === playMode) i = k;
+    setPlayMode(MODES[(i + 1) % MODES.length].id);
+  }
+
+  function stepByOrder(delta) {
+    if (!playlist.length) return;
+    if (playMode === 'seq') { load(index + delta, true); return; }
+    if (playOrder.length !== playlist.length) rebuildOrder();
+    var pos = index >= 0 ? playOrder.indexOf(index) : -1;
+    if (pos < 0) pos = delta > 0 ? -1 : 0;
+    var target = pos + delta;
+    if (target < 0 || target >= playOrder.length) {
+      rebuildOrder();
+      target = delta > 0 ? 0 : playOrder.length - 1;
+    }
+    load(playOrder[target], true);
   }
 
   /* 进度按歌单分开存：{ 歌单id: {key,index,time,...} }。
@@ -352,6 +467,7 @@
       '<span class="music-dock__artist">点开球载入歌单</span>',
       '</div>',
       '<div class="music-dock__actions">',
+      '<button class="music-dock__btn music-dock__btn--mode" type="button" data-act="mode" aria-label="顺序播放，点击切换" title="顺序播放，点击切换">' + ICONS.seq + '</button>',
       '<button class="music-dock__btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
       '<button class="music-dock__btn music-dock__btn--play" type="button" data-act="play" aria-label="播放">' + ICONS.play + '</button>',
       '<button class="music-dock__btn" type="button" data-act="next" aria-label="下一首">' + ICONS.next + '</button>',
@@ -424,6 +540,7 @@
     index = (i + playlist.length) % playlist.length;
     var item = playlist[index];
     currentKey = trackKey(item);
+    countedForLoad = false;
     npPlayingItem = item; npPlayingListName = currentPl().name || "";
     /* 只有「续播」这一条路径会带 resumeAt；点歌、上一首、下一首一律从头放 */
     pendingSeek = (typeof resumeAt === 'number' && resumeAt > 0) ? resumeAt : 0;
@@ -448,8 +565,8 @@
     }
   }
 
-  function next() { load(index + 1, true); }
-  function prev() { load(index < 0 ? playlist.length - 1 : index - 1, true); }
+  function next() { stepByOrder(1); }
+  function prev() { stepByOrder(-1); }
 
   function togglePlay() {
     /* 已经在放歌时，播放键只管暂停/继续，跟列表是否为空无关
@@ -487,14 +604,18 @@
       audio: audio,
       control: function (what) {
         if (!playlist.length) return false;
-        if (what === 'next') { load((index + 1) % playlist.length, true); return true; }
-        if (what === 'prev') { load((index - 1 + playlist.length) % playlist.length, true); return true; }
+        if (what === 'next') { next(); return true; }
+        if (what === 'prev') { prev(); return true; }
         return false;
       }
     };
+    var savedMode = 'seq';
+    try { savedMode = localStorage.getItem(MODE_KEY) || 'seq'; } catch (e) {}
+    setPlayMode(savedMode, true);
 
     audio.addEventListener('play', function () {
       failCount = 0;
+      if (!countedForLoad) { bumpCount(currentKey); countedForLoad = true; }
       dock.classList.add('playing');
       syncLyricVisible();
       playBtn.innerHTML = ICONS.pause;
@@ -662,6 +783,7 @@
             ? pl.name + ' · ' + playlist.length + ' 首'
             : '歌单为空';
         }
+        rebuildOrder();
         updateHero();
         renderRows();
         renderTabs();
@@ -1411,6 +1533,10 @@
       e.stopPropagation();
       next();
     });
+    dock.querySelector('[data-act="mode"]').addEventListener('click', function (e) {
+      e.stopPropagation();
+      cyclePlayMode();
+    });
 
     dock.addEventListener('click', function (e) {
       if (isMusicPage()) return;
@@ -1497,7 +1623,8 @@
         '<span class="np-time np-time--dur">0:00</span></div>',
         '<div class="np-bottom">',
           '<div class="np-mood"><canvas class="np-spec" aria-hidden="true"></canvas><span class="np-playing-label">等待播放</span></div>',
-          '<div class="np-ctrl"><button class="np-btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
+          '<div class="np-ctrl"><button class="np-btn np-btn--mode" type="button" data-act="mode" aria-label="顺序播放，点击切换" title="顺序播放，点击切换">' + ICONS.seq + '</button>',
+          '<button class="np-btn" type="button" data-act="prev" aria-label="上一首">' + ICONS.prev + '</button>',
           '<button class="np-btn np-play" type="button" data-act="play" aria-label="播放">' + ICONS.play + '</button>',
           '<button class="np-btn" type="button" data-act="next" aria-label="下一首">' + ICONS.next + '</button></div>',
           '<div class="np-extras"><div class="np-volume"><button class="np-tool np-mute" type="button" aria-label="静音">' + NP_ICONS.volume + '</button>',
@@ -1517,6 +1644,7 @@
     npFill = npEl.querySelector('.np-fill'); npDot = npEl.querySelector('.np-dot');
     npCur = npEl.querySelector('.np-time--cur'); npDur = npEl.querySelector('.np-time--dur');
     npPlay = npEl.querySelector('.np-play'); npBar = npEl.querySelector('.np-bar');
+    syncModeButtons();
     npSpec = npEl.querySelector('.np-spec'); npLyrics = npEl.querySelector('.np-lyrics');
     npTrack = npEl.querySelector('.np-lyric-track'); npQueue = npEl.querySelector('.np-queue-items');
     npEl.querySelector('.np-close').addEventListener('click', closeNp);
@@ -1526,6 +1654,7 @@
       if (b.dataset.act === 'play') togglePlay();
       if (b.dataset.act === 'prev') prev();
       if (b.dataset.act === 'next') next();
+      if (b.dataset.act === 'mode') cyclePlayMode();
     });
     npEl.querySelector('[data-np="theme"]').addEventListener('click', function () {
       npThemeManual = true;
