@@ -585,3 +585,297 @@ body.l2d-on #rightside {
     animation: none;
   }
 }
+
+/* ── 信笺皮肤（2026-11-19）──────────────────────
+   对话框重做：去掉聊天气泡，改成别在本子上的一页信笺。
+   她的字走左侧蓝线、你的字走右侧灰弧，像两种笔迹；
+   顶边别一枚回形针，输入区退成一条书写线。
+   原来的毛玻璃与深浅变量沿用，这里只覆盖视觉，回滚删掉这一段即可。
+   ---------------------------------------------------------------------- */
+
+/* 回形针：跨在卡片顶边。pointer-events 关掉，不挡下面的输入框 */
+.l2d-bubble::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  top: -27px;
+  left: 24px;
+  width: 26px;
+  height: 42px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='42' viewBox='0 0 26 42'%3E%3Cpath d='M9 7 h8 a5.5 5.5 0 0 1 5.5 5.5 v18 a10 10 0 0 1 -20 0 V13 a5.5 5.5 0 0 1 11 0 v19' fill='none' stroke='%238b97a8' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / contain;
+  transform: rotate(-11deg);
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(20, 30, 50, 0.22));
+}
+
+/* 纸面：从冷白便签转成暖纸，圆角收小 */
+.l2d-paper {
+  --ink: #2b3340;
+  --ink-soft: #7a8698;
+  background: rgba(253, 250, 242, 0.86);
+  -webkit-backdrop-filter: blur(16px) saturate(1.02);
+  backdrop-filter: blur(16px) saturate(1.02);
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(28, 42, 64, 0.10),
+              0 14px 38px rgba(28, 42, 64, 0.20),
+              inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 原来的书签条收起，改由回形针做标记 */
+.l2d-paper::before { display: none; }
+
+/* 抬头：一个圆点 + 拉开字距的名字，时间是角落小字 */
+.l2d-card-head { padding: 11px 14px 8px; border-bottom: 1px solid rgba(43, 51, 64, 0.10); }
+.l2d-who { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; color: var(--ink); }
+.l2d-who::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #49b1f5;
+  margin-right: 8px;
+  vertical-align: 2px;
+}
+.l2d-clock { font-size: 10px; color: var(--ink-soft); }
+
+/* 对话：没有气泡，两种笔迹 */
+.l2d-log { gap: 11px; padding: 13px 14px; }
+.l2d-msg { max-width: 92%; }
+.l2d-say {
+  background: transparent !important;
+  padding: 0 0 0 11px;
+  border-left: 2px solid rgba(73, 177, 245, 0.6);
+  border-radius: 0;
+  color: var(--ink);
+}
+.l2d-msg.is-me .l2d-say {
+  border-left: 0;
+  border-right: 2px solid rgba(43, 51, 64, 0.28);
+  padding: 0 11px 0 0;
+  text-align: right;
+}
+.l2d-acts span { background: rgba(43, 51, 64, 0.07); border-radius: 3px; font-size: 10.5px; }
+
+/* 输入：一条书写线 + 线框箭头 */
+.l2d-form { border-top: 1px solid rgba(43, 51, 64, 0.12); margin-top: 10px; padding-top: 9px; gap: 8px; }
+.l2d-input {
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(43, 51, 64, 0.3);
+  padding: 5px 2px;
+  color: var(--ink);
+}
+.l2d-input:focus { background: transparent; box-shadow: none; border-bottom-color: #49b1f5; }
+.l2d-input::placeholder { color: rgba(43, 51, 64, 0.42); }
+.l2d-send {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid rgba(43, 51, 64, 0.28);
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+.l2d-send:hover { background: rgba(73, 177, 245, 0.14); filter: none; }
+.l2d-send:disabled { opacity: 0.35; }
+
+/* 深色 */
+html[data-theme="dark"] .l2d-paper,
+.dark .l2d-paper {
+  --ink: #e6ebf5;
+  --ink-soft: #94a2b8;
+  background: rgba(34, 40, 52, 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(1.02);
+  backdrop-filter: blur(16px) saturate(1.02);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3), 0 14px 38px rgba(0, 0, 0, 0.55);
+}
+html[data-theme="dark"] .l2d-card-head,
+.dark .l2d-card-head { border-bottom-color: rgba(255, 255, 255, 0.12); }
+html[data-theme="dark"] .l2d-say,
+.dark .l2d-say { background: transparent !important; }
+html[data-theme="dark"] .l2d-msg.is-me .l2d-say,
+.dark .l2d-msg.is-me .l2d-say { border-right-color: rgba(255, 255, 255, 0.3); }
+html[data-theme="dark"] .l2d-form,
+.dark .l2d-form { border-top-color: rgba(255, 255, 255, 0.12); }
+html[data-theme="dark"] .l2d-input,
+.dark .l2d-input { background: transparent; color: #e6ebf5; border-bottom-color: rgba(255, 255, 255, 0.28); }
+html[data-theme="dark"] .l2d-input:focus,
+.dark .l2d-input:focus { background: transparent; box-shadow: none; border-bottom-color: #49b1f5; }
+html[data-theme="dark"] .l2d-input::placeholder,
+.dark .l2d-input::placeholder { color: rgba(255, 255, 255, 0.42); }
+html[data-theme="dark"] .l2d-send,
+.dark .l2d-send { color: #e6ebf5; border-color: rgba(255, 255, 255, 0.28); }
+html[data-theme="dark"] .l2d-acts span,
+.dark .l2d-acts span { background: rgba(255, 255, 255, 0.08); }
+html[data-theme="dark"] .l2d-say code,
+.dark .l2d-say code { background: rgba(255, 255, 255, 0.12); }
+
+/* 对话卡片：窗边对话。只覆盖视觉，不改对话和模型的交互。 */
+.l2d-bubble::before { display: none; }
+
+.l2d-paper {
+  --chat-paper: rgba(252, 250, 246, 0.97);
+  --chat-header: rgba(235, 241, 240, 0.8);
+  --chat-line: rgba(63, 82, 85, 0.13);
+  --chat-text: #293a3c;
+  --chat-muted: #667878;
+  --chat-her: rgba(231, 238, 235, 0.82);
+  --chat-me: rgba(224, 233, 240, 0.9);
+  --chat-field: rgba(255, 255, 255, 0.66);
+  --chat-accent: #477d7a;
+  --ink: var(--chat-text);
+  --ink-soft: var(--chat-muted);
+  max-height: min(48vh, 340px);
+  border: 1px solid rgba(90, 110, 108, 0.18);
+  border-radius: 15px;
+  background: var(--chat-paper);
+  box-shadow: 0 12px 35px rgba(35, 51, 53, 0.18), 0 2px 8px rgba(35, 51, 53, 0.08);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.l2d-paper::before { display: none; }
+.l2d-card-head {
+  min-height: 53px;
+  padding: 10px 15px;
+  gap: 10px;
+  background: var(--chat-header);
+  border-bottom: 1px solid var(--chat-line);
+}
+.l2d-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--chat-text);
+}
+.l2d-who::before { display: none; }
+.l2d-who::after {
+  content: '窗边闲谈';
+  color: var(--chat-muted);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+}
+.l2d-clock {
+  align-self: flex-start;
+  margin: 2px 0 0 auto;
+  color: var(--chat-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.l2d-log {
+  gap: 13px;
+  padding: 15px 15px 12px;
+}
+.l2d-msg { max-width: 91%; gap: 4px; }
+.l2d-msg::before {
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: var(--chat-muted);
+}
+.l2d-msg.is-her::before { content: '风月'; }
+.l2d-msg.is-me::before { content: '你'; }
+.l2d-say,
+html[data-theme="dark"] .l2d-say,
+.dark .l2d-say {
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 4px 12px 12px 12px;
+  background: var(--chat-her) !important;
+  color: var(--chat-text);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.l2d-msg.is-me .l2d-say,
+html[data-theme="dark"] .l2d-msg.is-me .l2d-say,
+.dark .l2d-msg.is-me .l2d-say {
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 12px 4px 12px 12px;
+  background: var(--chat-me) !important;
+  color: var(--chat-text);
+  text-align: left;
+}
+.l2d-acts span,
+html[data-theme="dark"] .l2d-acts span,
+.dark .l2d-acts span {
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--chat-her);
+  color: var(--chat-muted);
+}
+.l2d-form,
+html[data-theme="dark"] .l2d-form,
+.dark .l2d-form {
+  margin: 0;
+  padding: 9px 12px 12px;
+  gap: 7px;
+  border-top: 1px solid var(--chat-line);
+}
+.l2d-input,
+html[data-theme="dark"] .l2d-input,
+.dark .l2d-input {
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border: 1px solid var(--chat-line);
+  border-radius: 9px;
+  background: var(--chat-field);
+  color: var(--chat-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.l2d-input::placeholder,
+html[data-theme="dark"] .l2d-input::placeholder,
+.dark .l2d-input::placeholder { color: var(--chat-muted); opacity: 0.85; }
+.l2d-input:focus,
+html[data-theme="dark"] .l2d-input:focus,
+.dark .l2d-input:focus {
+  background: var(--chat-field);
+  border-color: var(--chat-accent);
+  box-shadow: 0 0 0 2px rgba(71, 125, 122, 0.18);
+}
+.l2d-send,
+html[data-theme="dark"] .l2d-send,
+.dark .l2d-send {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--chat-accent);
+  color: #fff;
+  font-size: 18px;
+}
+.l2d-send:hover { background: var(--chat-accent); filter: brightness(1.1); }
+.l2d-send:focus-visible { outline: 2px solid var(--chat-accent); outline-offset: 3px; }
+.l2d-send:disabled { opacity: 0.45; }
+
+html[data-theme="dark"] .l2d-paper,
+.dark .l2d-paper {
+  --chat-paper: rgba(36, 42, 44, 0.97);
+  --chat-header: rgba(55, 68, 68, 0.83);
+  --chat-line: rgba(220, 232, 228, 0.13);
+  --chat-text: #edf1ed;
+  --chat-muted: #b3c1bc;
+  --chat-her: rgba(93, 112, 106, 0.32);
+  --chat-me: rgba(93, 111, 125, 0.36);
+  --chat-field: rgba(255, 255, 255, 0.05);
+  --chat-accent: #568b86;
+  border-color: rgba(235, 243, 240, 0.14);
+  background: var(--chat-paper);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.42), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+@media (max-width: 768px) {
+  .l2d-paper { max-height: min(50vh, 320px); }
+  .l2d-input,
+  html[data-theme="dark"] .l2d-input,
+  .dark .l2d-input { font-size: 16px; }
+}

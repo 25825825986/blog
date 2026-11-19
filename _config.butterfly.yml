@@ -1229,7 +1229,7 @@ inject:
   # 侧边栏时间卡片样式（用到 custom.css 里的设计令牌，必须排在它后面）
   - <link rel="stylesheet" href="/css/clock-card.css?v=20261110c">
   # 右下角看板娘（样式；脚本在 bottom 段，首屏后才拉模型）
-  - <link rel="stylesheet" href="/css/live2d.css?v=20261117g1">
+  - <link rel="stylesheet" href="/css/live2d.css?v=20261119b">
   bottom:
   # 全局悬浮播放器，/music/ 页面复用同一个实例
   - <script defer src="/js/music-player.js?v=20261119-mp9"></script>
